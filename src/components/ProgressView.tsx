@@ -2,6 +2,7 @@
 
 import { useState } from "react";
 
+import AIWeeklyReport from "@/components/AIWeeklyReport";
 import AnalyticsView from "@/components/AnalyticsView";
 import GradesView from "@/components/GradesView";
 
@@ -31,7 +32,8 @@ export default function ProgressView() {
 
         <p className="mt-3 max-w-2xl text-[15px] leading-7 text-[#6E6E73]">
           تابع وقت مذاكرتك
-          ودرجاتك من مكان واحد.
+          ودرجاتك، وخلي مسار
+          يحلل أسبوعك.
         </p>
       </header>
 
@@ -73,7 +75,11 @@ export default function ProgressView() {
 
       {activeTab ===
       "overview" ? (
-        <AnalyticsView />
+        <>
+          <AnalyticsView />
+
+          <AIWeeklyReport />
+        </>
       ) : (
         <GradesView />
       )}
