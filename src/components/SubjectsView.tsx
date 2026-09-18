@@ -7,10 +7,9 @@ import {
 } from "react";
 
 import LessonStudyTimer from "@/components/LessonStudyTimer";
+import LessonWeakPoints from "@/components/LessonWeakPoints";
 
-import {
-  curriculum,
-} from "@/data/curriculumData";
+import { curriculum } from "@/data/curriculumData";
 
 import {
   getSubjectWorkflow,
@@ -71,6 +70,10 @@ export default function SubjectsView() {
     useState<StudyContext | null>(
       null
     );
+
+  // ==========================================
+  // Load progress
+  // ==========================================
 
   useEffect(() => {
     let nextProgress:
@@ -177,8 +180,14 @@ export default function SubjectsView() {
     setLoaded(true);
   }, []);
 
+  // ==========================================
+  // Save progress
+  // ==========================================
+
   useEffect(() => {
-    if (!loaded) return;
+    if (!loaded) {
+      return;
+    }
 
     localStorage.setItem(
       WORKFLOW_STORAGE_KEY,
@@ -516,6 +525,10 @@ export default function SubjectsView() {
     });
   }
 
+  // ==========================================
+  // Lesson
+  // ==========================================
+
   if (
     selectedSubject &&
     selectedLessonData
@@ -539,8 +552,14 @@ export default function SubjectsView() {
       ] ?? [];
 
     return (
-      <>
-        <header className="mb-9">
+      <div
+        key={
+          selectedLessonData
+            .lesson.id
+        }
+        className="masar-enter"
+      >
+        <header className="mb-8">
           <button
             type="button"
             onClick={() =>
@@ -548,7 +567,7 @@ export default function SubjectsView() {
                 null
               )
             }
-            className="mb-6 rounded-full bg-white px-4 py-2 text-sm text-[#6E6E73] transition hover:bg-[#ECECEF]"
+            className="mb-6 rounded-full bg-white px-4 py-2 text-sm text-[#6E6E73] transition-all duration-200 hover:bg-[#ECECEF]"
           >
             ← رجوع للمادة
           </button>
@@ -583,84 +602,61 @@ export default function SubjectsView() {
             </span>
           </div>
 
-          <div className="mt-7 flex flex-wrap gap-3">
+          <div className="mt-7 flex flex-wrap items-center gap-3">
             <button
               type="button"
               onClick={
                 startLessonTimer
               }
-              className="rounded-full bg-[#0071E3] px-6 py-3.5 text-sm font-medium text-white transition hover:bg-[#0077ED]"
+              className="rounded-full bg-[#0071E3] px-6 py-3.5 text-sm font-medium text-white transition-all duration-200 hover:scale-[1.01] hover:bg-[#0077ED]"
             >
-              ابدأ مذاكرة الدرس
+              ابدأ المذاكرة
             </button>
+
+            <span className="text-xs text-[#86868B]">
+              {stats.progress}% مكتمل
+            </span>
           </div>
 
-          <div className="mt-7 max-w-xl">
-            <div className="mb-3 flex items-center justify-between text-xs">
-              <span className="text-[#86868B]">
-                تقدم الدرس
-              </span>
-
-              <span className="font-medium text-[#1D1D1F]">
-                {
-                  stats.completedCount
-                }
-                /{stats.total}
-              </span>
-            </div>
-
-            <div className="h-[7px] overflow-hidden rounded-full bg-[#E8E8ED]">
+          <div className="mt-6 max-w-xl">
+            <div className="h-[6px] overflow-hidden rounded-full bg-[#E8E8ED]">
               <div
-                className="h-full rounded-full bg-[#0071E3] transition-all duration-500"
+                className="h-full rounded-full bg-[#0071E3] transition-all duration-500 ease-out"
                 style={{
                   width: `${stats.progress}%`,
                 }}
               />
             </div>
-
-            <p className="mt-2 text-xs text-[#86868B]">
-              {stats.progress}% مكتمل
-            </p>
           </div>
         </header>
 
         {stats.complete && (
-          <section className="mb-5 rounded-[26px] bg-[#1D1D1F] p-6 text-white">
-            <p className="text-xs text-[#A1A1A6]">
-              Lesson complete
+          <section className="masar-enter mb-5 rounded-[24px] bg-[#1D1D1F] p-5 text-white">
+            <p className="text-sm font-medium">
+              الدرس مكتمل ✓
             </p>
 
-            <h2 className="mt-2 text-xl font-semibold">
-              خلصت خطوات الدرس ✓
-            </h2>
-
-            <p className="mt-2 text-sm leading-6 text-[#A1A1A6]">
-              الدرس بيتحسب
-              مكتمل بعد إنهاء
-              خطوات المذاكرة
-              الخاصة بالمادة.
+            <p className="mt-2 text-xs leading-5 text-[#A1A1A6]">
+              خلصت كل خطوات
+              المذاكرة الخاصة
+              بالدرس.
             </p>
           </section>
         )}
 
-        <section className="rounded-[30px] bg-white p-5 sm:p-7">
-          <div className="mb-7">
-            <p className="text-xs font-medium text-[#0071E3]">
-              Study Workflow
-            </p>
-
-            <h2 className="mt-2 text-xl font-semibold">
-              خطوات مذاكرة الدرس
+        <section className="rounded-[28px] bg-white p-5 sm:p-7">
+          <div className="mb-6">
+            <h2 className="text-lg font-semibold">
+              خطوات الدرس
             </h2>
 
-            <p className="mt-2 text-sm leading-6 text-[#86868B]">
-              علّم على كل خطوة
-              بعد ما تخلصها
-              فعلًا.
+            <p className="mt-2 text-sm text-[#86868B]">
+              علّم على الخطوة بعد
+              ما تخلصها.
             </p>
           </div>
 
-          <div className="space-y-3">
+          <div className="space-y-2">
             {workflow.map(
               (step, index) => {
                 const completed =
@@ -679,47 +675,38 @@ export default function SubjectsView() {
                         step.id
                       )
                     }
-                    className={`flex w-full gap-4 rounded-[22px] border p-5 text-right transition ${
+                    className={`flex w-full items-start gap-4 rounded-[18px] border px-4 py-4 text-right transition-all duration-200 ${
                       completed
                         ? "border-transparent bg-[#F5F5F7]"
-                        : "border-[#ECECEF] hover:border-[#D2D2D7]"
+                        : "border-[#ECECEF] hover:border-[#D2D2D7] hover:bg-[#FAFAFA]"
                     }`}
                   >
                     <span
-                      className={`flex h-9 w-9 shrink-0 items-center justify-center rounded-full border text-sm font-medium transition ${
+                      className={`flex h-7 w-7 shrink-0 items-center justify-center rounded-full border text-xs transition-all duration-200 ${
                         completed
                           ? "border-[#0071E3] bg-[#0071E3] text-white"
-                          : "border-[#C7C7CC] text-[#6E6E73]"
+                          : "border-[#C7C7CC] text-[#86868B]"
                       }`}
                     >
                       {completed
                         ? "✓"
-                        : index +
-                          1}
+                        : index + 1}
                     </span>
 
                     <div className="min-w-0 flex-1">
-                      <div className="flex items-center justify-between gap-4">
-                        <h3
-                          className={`font-medium ${
-                            completed
-                              ? "text-[#6E6E73]"
-                              : "text-[#1D1D1F]"
-                          }`}
-                        >
-                          {
-                            step.title
-                          }
-                        </h3>
+                      <p
+                        className={`text-sm font-medium transition-colors ${
+                          completed
+                            ? "text-[#6E6E73]"
+                            : "text-[#1D1D1F]"
+                        }`}
+                      >
+                        {
+                          step.title
+                        }
+                      </p>
 
-                        <span className="shrink-0 text-[11px] text-[#AEAEB2]">
-                          {completed
-                            ? "مكتمل"
-                            : "لم يكتمل"}
-                        </span>
-                      </div>
-
-                      <p className="mt-2 max-w-2xl text-sm leading-6 text-[#86868B]">
+                      <p className="mt-1 text-xs leading-5 text-[#86868B]">
                         {
                           step.description
                         }
@@ -731,6 +718,27 @@ export default function SubjectsView() {
             )}
           </div>
         </section>
+
+        <LessonWeakPoints
+          subjectId={
+            selectedSubject.id
+          }
+          subjectName={
+            selectedSubject.name
+          }
+          lessonId={
+            selectedLessonData
+              .lesson.id
+          }
+          lessonTitle={
+            selectedLessonData
+              .lesson.title
+          }
+          unitTitle={
+            selectedLessonData
+              .unit.title
+          }
+        />
 
         {studyContext && (
           <LessonStudyTimer
@@ -744,9 +752,13 @@ export default function SubjectsView() {
             }
           />
         )}
-      </>
+      </div>
     );
   }
+
+  // ==========================================
+  // Subject
+  // ==========================================
 
   if (selectedSubject) {
     const stats =
@@ -755,8 +767,11 @@ export default function SubjectsView() {
       );
 
     return (
-      <>
-        <header className="mb-9">
+      <div
+        key={selectedSubject.id}
+        className="masar-enter"
+      >
+        <header className="mb-8">
           <button
             type="button"
             onClick={() => {
@@ -772,7 +787,7 @@ export default function SubjectsView() {
                 null
               );
             }}
-            className="mb-6 rounded-full bg-white px-4 py-2 text-sm text-[#6E6E73] transition hover:bg-[#ECECEF]"
+            className="mb-6 rounded-full bg-white px-4 py-2 text-sm text-[#6E6E73] transition-all duration-200 hover:bg-[#ECECEF]"
           >
             ← كل المواد
           </button>
@@ -790,29 +805,25 @@ export default function SubjectsView() {
           </h1>
 
           <div className="mt-6 max-w-xl">
-            <div className="mb-3 flex items-center justify-between text-sm">
+            <div className="mb-3 flex items-center justify-between text-xs">
               <span className="text-[#86868B]">
                 تقدم المنهج
               </span>
 
               <span className="font-medium">
-                {stats.completed} /{" "}
+                {stats.completed} من{" "}
                 {stats.total}
               </span>
             </div>
 
-            <div className="h-[7px] overflow-hidden rounded-full bg-[#E8E8ED]">
+            <div className="h-[6px] overflow-hidden rounded-full bg-[#E8E8ED]">
               <div
-                className="h-full rounded-full bg-[#0071E3] transition-all duration-500"
+                className="h-full rounded-full bg-[#0071E3] transition-all duration-500 ease-out"
                 style={{
                   width: `${stats.progress}%`,
                 }}
               />
             </div>
-
-            <p className="mt-2 text-xs text-[#86868B]">
-              {stats.progress}% مكتمل
-            </p>
           </div>
         </header>
 
@@ -835,10 +846,13 @@ export default function SubjectsView() {
               return (
                 <section
                   key={unit.id}
-                  className="overflow-hidden rounded-[28px] bg-white"
+                  className="overflow-hidden rounded-[26px] bg-white"
                 >
                   <button
                     type="button"
+                    aria-expanded={
+                      isOpen
+                    }
                     onClick={() =>
                       setOpenUnitId(
                         isOpen
@@ -846,7 +860,7 @@ export default function SubjectsView() {
                           : unit.id
                       )
                     }
-                    className="flex w-full items-center justify-between gap-5 p-6 text-right sm:p-7"
+                    className="flex w-full items-center justify-between gap-5 p-6 text-right transition-colors duration-200 hover:bg-[#FAFAFA]"
                   >
                     <div className="min-w-0 flex-1">
                       <h2 className="text-lg font-semibold">
@@ -858,7 +872,7 @@ export default function SubjectsView() {
                       <div className="mt-3 flex items-center gap-3">
                         <div className="h-[5px] max-w-[160px] flex-1 overflow-hidden rounded-full bg-[#E8E8ED]">
                           <div
-                            className="h-full rounded-full bg-[#0071E3]"
+                            className="h-full rounded-full bg-[#0071E3] transition-all duration-500 ease-out"
                             style={{
                               width: `${unitStats.progress}%`,
                             }}
@@ -878,104 +892,117 @@ export default function SubjectsView() {
                     </div>
 
                     <span
-                      className={`flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-[#F5F5F7] text-lg transition ${
+                      className={`flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-[#F5F5F7] text-lg transition-transform duration-300 ease-out ${
                         isOpen
                           ? "rotate-45"
-                          : ""
+                          : "rotate-0"
                       }`}
                     >
                       +
                     </span>
                   </button>
 
-                  {isOpen && (
-                    <div className="border-t border-[#ECECEF] p-4 sm:p-6">
-                      <div className="space-y-2">
-                        {unit.lessons.map(
-                          (
-                            lesson,
-                            index
-                          ) => {
-                            const lessonStats =
-                              getLessonStats(
-                                selectedSubject.id,
-                                lesson.id
-                              );
-
-                            return (
-                              <button
-                                key={
+                  <div
+                    className="masar-expand"
+                    data-open={
+                      isOpen
+                        ? "true"
+                        : "false"
+                    }
+                  >
+                    <div className="masar-expand-inner">
+                      <div className="border-t border-[#ECECEF] p-4 sm:p-6">
+                        <div className="space-y-2">
+                          {unit.lessons.map(
+                            (
+                              lesson,
+                              index
+                            ) => {
+                              const lessonStats =
+                                getLessonStats(
+                                  selectedSubject.id,
                                   lesson.id
-                                }
-                                type="button"
-                                onClick={() =>
-                                  setSelectedLessonId(
+                                );
+
+                              return (
+                                <button
+                                  key={
                                     lesson.id
-                                  )
-                                }
-                                className="group flex w-full items-center gap-4 rounded-[18px] border border-[#ECECEF] px-4 py-4 text-right transition hover:border-[#D2D2D7] hover:bg-[#FAFAFA]"
-                              >
-                                <span
-                                  className={`flex h-8 w-8 shrink-0 items-center justify-center rounded-full border text-xs ${
-                                    lessonStats.complete
-                                      ? "border-[#0071E3] bg-[#0071E3] text-white"
-                                      : "border-[#C7C7CC] text-[#86868B]"
-                                  }`}
+                                  }
+                                  type="button"
+                                  onClick={() =>
+                                    setSelectedLessonId(
+                                      lesson.id
+                                    )
+                                  }
+                                  className="group flex w-full items-center gap-4 rounded-[18px] border border-[#ECECEF] px-4 py-4 text-right transition-all duration-200 hover:-translate-y-[1px] hover:border-[#D2D2D7] hover:bg-[#FAFAFA]"
                                 >
-                                  {lessonStats.complete
-                                    ? "✓"
-                                    : index +
-                                      1}
-                                </span>
+                                  <span
+                                    className={`flex h-8 w-8 shrink-0 items-center justify-center rounded-full border text-xs transition-all duration-200 ${
+                                      lessonStats.complete
+                                        ? "border-[#0071E3] bg-[#0071E3] text-white"
+                                        : "border-[#C7C7CC] text-[#86868B]"
+                                    }`}
+                                  >
+                                    {lessonStats.complete
+                                      ? "✓"
+                                      : index +
+                                        1}
+                                  </span>
 
-                                <div className="min-w-0 flex-1">
-                                  <p className="text-sm font-medium">
-                                    {
-                                      lesson.title
-                                    }
-                                  </p>
-
-                                  <div className="mt-2 flex items-center gap-3">
-                                    <div className="h-[4px] max-w-[100px] flex-1 overflow-hidden rounded-full bg-[#E8E8ED]">
-                                      <div
-                                        className="h-full rounded-full bg-[#0071E3]"
-                                        style={{
-                                          width: `${lessonStats.progress}%`,
-                                        }}
-                                      />
-                                    </div>
-
-                                    <p className="text-[11px] text-[#AEAEB2]">
+                                  <div className="min-w-0 flex-1">
+                                    <p className="text-sm font-medium text-[#1D1D1F]">
                                       {
-                                        lessonStats.progress
+                                        lesson.title
                                       }
-                                      %
                                     </p>
-                                  </div>
-                                </div>
 
-                                <span className="text-sm text-[#AEAEB2] group-hover:text-[#0071E3]">
-                                  ←
-                                </span>
-                              </button>
-                            );
-                          }
-                        )}
+                                    <div className="mt-2 flex items-center gap-3">
+                                      <div className="h-[4px] max-w-[100px] flex-1 overflow-hidden rounded-full bg-[#E8E8ED]">
+                                        <div
+                                          className="h-full rounded-full bg-[#0071E3] transition-all duration-500 ease-out"
+                                          style={{
+                                            width: `${lessonStats.progress}%`,
+                                          }}
+                                        />
+                                      </div>
+
+                                      <p className="text-[11px] text-[#AEAEB2]">
+                                        {
+                                          lessonStats.progress
+                                        }
+                                        %
+                                      </p>
+                                    </div>
+                                  </div>
+
+                                  <span className="shrink-0 text-sm text-[#AEAEB2] transition-all duration-200 group-hover:-translate-x-1 group-hover:text-[#0071E3]">
+                                    ←
+                                  </span>
+                                </button>
+                              );
+                            }
+                          )}
+                        </div>
                       </div>
                     </div>
-                  )}
+                  </div>
                 </section>
               );
             }
           )}
         </div>
-      </>
+      </div>
     );
   }
 
+  // ==========================================
+  // Subjects
+  // ==========================================
+
   return (
-    <>
-      <header className="mb-9">
+    <div className="masar-enter">
+      <header className="mb-8">
         <p className="mb-2 text-sm text-[#86868B]">
           المنهج
         </p>
@@ -985,9 +1012,8 @@ export default function SubjectsView() {
         </h1>
 
         <p className="mt-3 max-w-2xl text-[15px] leading-7 text-[#6E6E73]">
-          افتح أي مادة وتابع
-          تقدمك الحقيقي في
-          الوحدات والدروس.
+          كل مادة، وحداتها
+          ودروسها في مكان واحد.
         </p>
       </header>
 
@@ -1008,7 +1034,7 @@ export default function SubjectsView() {
                     subject.id
                   )
                 }
-                className="group rounded-[28px] bg-white p-6 text-right transition duration-200 hover:-translate-y-1"
+                className="group rounded-[28px] bg-white p-6 text-right transition-all duration-200 hover:-translate-y-1"
               >
                 <div className="flex items-start justify-between">
                   <div className="flex h-12 w-12 items-center justify-center rounded-[16px] bg-[#F5F5F7] text-lg font-semibold">
@@ -1017,7 +1043,7 @@ export default function SubjectsView() {
                     )}
                   </div>
 
-                  <span className="text-sm text-[#0071E3] opacity-0 transition group-hover:opacity-100">
+                  <span className="text-sm text-[#0071E3] opacity-0 transition-all duration-200 group-hover:-translate-x-1 group-hover:opacity-100">
                     فتح ←
                   </span>
                 </div>
@@ -1062,7 +1088,7 @@ export default function SubjectsView() {
 
                   <div className="h-[6px] overflow-hidden rounded-full bg-[#E8E8ED]">
                     <div
-                      className="h-full rounded-full bg-[#0071E3]"
+                      className="h-full rounded-full bg-[#0071E3] transition-all duration-500 ease-out"
                       style={{
                         width: `${stats.progress}%`,
                       }}
@@ -1073,7 +1099,7 @@ export default function SubjectsView() {
                 <p className="mt-4 text-xs text-[#86868B]">
                   {stats.completed ===
                   0
-                    ? "لم تبدأ هذه المادة بعد"
+                    ? "لم تبدأ بعد"
                     : `${stats.completed} من ${stats.total} درس مكتمل`}
                 </p>
               </button>
@@ -1081,6 +1107,6 @@ export default function SubjectsView() {
           }
         )}
       </div>
-    </>
+    </div>
   );
 }

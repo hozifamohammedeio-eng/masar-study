@@ -1,7 +1,6 @@
 "use client";
 
 import {
-  type FormEvent,
   type ReactNode,
   useCallback,
   useEffect,
@@ -10,7 +9,8 @@ import {
   useState,
 } from "react";
 
-import AnalyticsView from "@/components/AnalyticsView";
+import ProgressView from "@/components/ProgressView";
+import SmoothView from "@/components/SmoothView";
 import SubjectsView from "@/components/SubjectsView";
 
 import { curriculum } from "@/data/curriculumData";
@@ -27,25 +27,19 @@ import {
   weeklyPlan,
 } from "@/data/studyData";
 
+import {
+  loadWeakPoints,
+} from "@/data/weakPointData";
+
 type View =
   | "today"
-  | "plan"
   | "subjects"
   | "timer"
-  | "grades"
-  | "analytics"
+  | "progress"
+  | "plan"
   | "settings";
 
-type Grade = {
-  id: string;
-  subject: string;
-  type: "Quiz" | "Homework" | "Exam";
-  score: number;
-  total: number;
-  date: string;
-};
-
-const navigation: {
+const mainNavigation: {
   id: View;
   label: string;
   symbol: string;
@@ -54,11 +48,6 @@ const navigation: {
     id: "today",
     label: "اليوم",
     symbol: "●",
-  },
-  {
-    id: "plan",
-    label: "خطتي",
-    symbol: "□",
   },
   {
     id: "subjects",
@@ -71,19 +60,9 @@ const navigation: {
     symbol: "◷",
   },
   {
-    id: "grades",
-    label: "الدرجات",
-    symbol: "✓",
-  },
-  {
-    id: "analytics",
-    label: "التحليلات",
+    id: "progress",
+    label: "تقدمي",
     symbol: "⌁",
-  },
-  {
-    id: "settings",
-    label: "الإعدادات",
-    symbol: "⚙",
   },
 ];
 
@@ -94,8 +73,16 @@ export default function Home() {
   const [now, setNow] =
     useState<Date | null>(null);
 
-  const [activeView, setActiveView] =
+  const [
+    activeView,
+    setActiveView,
+  ] =
     useState<View>("today");
+
+  const [
+    mobileMenuOpen,
+    setMobileMenuOpen,
+  ] = useState(false);
 
   const [
     completedTasks,
@@ -110,7 +97,13 @@ export default function Home() {
   const [
     studySessions,
     setStudySessions,
-  ] = useState<StudySession[]>([]);
+  ] =
+    useState<StudySession[]>([]);
+
+  const [
+    openWeakPointsCount,
+    setOpenWeakPointsCount,
+  ] = useState(0);
 
   const [
     timerRunning,
@@ -130,7 +123,8 @@ export default function Home() {
   const [
     selectedSubject,
     setSelectedSubject,
-  ] = useState("اللغة العربية");
+  ] =
+    useState("اللغة العربية");
 
   const [
     sessionGoal,
@@ -143,45 +137,10 @@ export default function Home() {
   const timerStartRemainingRef =
     useRef<number | null>(null);
 
-  const [grades, setGrades] =
-    useState<Grade[]>([]);
-
-  const [
-    gradesLoaded,
-    setGradesLoaded,
-  ] = useState(false);
-
-  const [
-    gradeSubject,
-    setGradeSubject,
-  ] = useState("اللغة العربية");
-
-  const [
-    gradeType,
-    setGradeType,
-  ] =
-    useState<Grade["type"]>(
-      "Quiz"
-    );
-
-  const [
-    gradeScore,
-    setGradeScore,
-  ] = useState("");
-
-  const [
-    gradeTotal,
-    setGradeTotal,
-  ] = useState("");
-
   const [
     studentName,
     setStudentName,
   ] = useState("حذيفة");
-
-  // ==========================================
-  // Current date
-  // ==========================================
 
   useEffect(() => {
     setNow(new Date());
@@ -223,10 +182,6 @@ export default function Home() {
         : "مساء الخير";
     }, [now]);
 
-  // ==========================================
-  // Student settings
-  // ==========================================
-
   useEffect(() => {
     const savedName =
       localStorage.getItem(
@@ -236,16 +191,35 @@ export default function Home() {
     if (savedName) {
       setStudentName(savedName);
     }
-  }, []);
 
-  // ==========================================
-  // Today's tasks
-  // ==========================================
+    const savedTimer =
+      localStorage.getItem(
+        "masar-timer-minutes"
+      );
+
+    if (savedTimer) {
+      const parsed =
+        Number(savedTimer);
+
+      if (
+        parsed === 25 ||
+        parsed === 50 ||
+        parsed === 55
+      ) {
+        setTimerMinutes(parsed);
+
+        setSecondsLeft(
+          parsed * 60
+        );
+      }
+    }
+  }, []);
 
   useEffect(() => {
     if (!todayKey) return;
 
     setTasksLoaded(false);
+
     setCompletedTasks([]);
 
     const saved =
@@ -293,27 +267,35 @@ export default function Home() {
     todayKey,
   ]);
 
-  // ==========================================
-  // Study sessions
-  // ==========================================
-
-  const refreshStudySessions =
+  const refreshRealData =
     useCallback(() => {
       setStudySessions(
         loadStudySessions()
       );
+
+      const weakPoints =
+        loadWeakPoints();
+
+      setOpenWeakPointsCount(
+        weakPoints.filter(
+          (point) =>
+            !point.resolved
+        ).length
+      );
     }, []);
 
   useEffect(() => {
-    refreshStudySessions();
+    refreshRealData();
   }, [
     activeView,
-    refreshStudySessions,
+    refreshRealData,
   ]);
 
   const todayFocusSeconds =
     useMemo(() => {
-      if (!todayKey) return 0;
+      if (!todayKey) {
+        return 0;
+      }
 
       return studySessions
         .filter(
@@ -331,52 +313,6 @@ export default function Home() {
       studySessions,
       todayKey,
     ]);
-
-  // ==========================================
-  // Grades
-  // ==========================================
-
-  useEffect(() => {
-    const saved =
-      localStorage.getItem(
-        "masar-grades"
-      );
-
-    if (saved) {
-      try {
-        const parsed =
-          JSON.parse(saved);
-
-        if (
-          Array.isArray(parsed)
-        ) {
-          setGrades(parsed);
-        }
-      } catch {
-        setGrades([]);
-      }
-    }
-
-    setGradesLoaded(true);
-  }, []);
-
-  useEffect(() => {
-    if (!gradesLoaded) {
-      return;
-    }
-
-    localStorage.setItem(
-      "masar-grades",
-      JSON.stringify(grades)
-    );
-  }, [
-    grades,
-    gradesLoaded,
-  ]);
-
-  // ==========================================
-  // Main timer save logic
-  // ==========================================
 
   const saveMainTimerSegment =
     useCallback(
@@ -419,15 +355,20 @@ export default function Home() {
             context: {
               subjectId:
                 subject.id,
+
               subjectName:
                 subject.name,
+
               goal:
                 sessionGoal.trim() ||
                 undefined,
             },
+
             startedAt,
+
             endedAt:
               new Date(),
+
             durationSeconds,
           });
         }
@@ -438,18 +379,14 @@ export default function Home() {
         timerStartRemainingRef.current =
           null;
 
-        refreshStudySessions();
+        refreshRealData();
       },
       [
         selectedSubject,
         sessionGoal,
-        refreshStudySessions,
+        refreshRealData,
       ]
     );
-
-  // ==========================================
-  // Main timer countdown
-  // ==========================================
 
   useEffect(() => {
     if (!timerRunning) {
@@ -480,6 +417,7 @@ export default function Home() {
       secondsLeft === 0
     ) {
       saveMainTimerSegment(0);
+
       setTimerRunning(false);
     }
   }, [
@@ -487,10 +425,6 @@ export default function Home() {
     secondsLeft,
     saveMainTimerSegment,
   ]);
-
-  // ==========================================
-  // Calculations
-  // ==========================================
 
   const progress =
     useMemo(() => {
@@ -502,43 +436,13 @@ export default function Home() {
 
       return Math.round(
         (completedTasks.length /
-          todayPlan.tasks
-            .length) *
+          todayPlan.tasks.length) *
           100
       );
     }, [
       completedTasks,
       todayPlan.tasks.length,
     ]);
-
-  const gradeAverage =
-    useMemo(() => {
-      if (
-        grades.length === 0
-      ) {
-        return null;
-      }
-
-      const values =
-        grades.map(
-          (grade) =>
-            (grade.score /
-              grade.total) *
-            100
-        );
-
-      return Math.round(
-        values.reduce(
-          (sum, value) =>
-            sum + value,
-          0
-        ) / values.length
-      );
-    }, [grades]);
-
-  // ==========================================
-  // Tasks
-  // ==========================================
 
   function toggleTask(
     index: number
@@ -557,10 +461,6 @@ export default function Home() {
     );
   }
 
-  // ==========================================
-  // Timer controls
-  // ==========================================
-
   function changeTimerDuration(
     minutes: number
   ) {
@@ -572,6 +472,11 @@ export default function Home() {
 
     setSecondsLeft(
       minutes * 60
+    );
+
+    localStorage.setItem(
+      "masar-timer-minutes",
+      String(minutes)
     );
   }
 
@@ -643,10 +548,6 @@ export default function Home() {
     );
   }
 
-  // ==========================================
-  // Formatting
-  // ==========================================
-
   function formatTimer(
     totalSeconds: number
   ) {
@@ -675,8 +576,8 @@ export default function Home() {
     totalSeconds: number
   ) {
     if (
-      totalSeconds < 60 &&
-      totalSeconds > 0
+      totalSeconds > 0 &&
+      totalSeconds < 60
     ) {
       return "أقل من دقيقة";
     }
@@ -711,90 +612,31 @@ export default function Home() {
     return `${hours} س ${remainingMinutes} د`;
   }
 
-  // ==========================================
-  // Grades
-  // ==========================================
-
-  function addGrade(
-    event: FormEvent<HTMLFormElement>
-  ) {
-    event.preventDefault();
-
-    const score =
-      Number(gradeScore);
-
-    const total =
-      Number(gradeTotal);
-
-    if (
-      gradeScore.trim() ===
-        "" ||
-      gradeTotal.trim() ===
-        "" ||
-      Number.isNaN(score) ||
-      Number.isNaN(total) ||
-      score < 0 ||
-      total <= 0 ||
-      score > total
-    ) {
-      return;
-    }
-
-    const grade: Grade = {
-      id: crypto.randomUUID(),
-      subject:
-        gradeSubject,
-      type: gradeType,
-      score,
-      total,
-      date:
-        new Date().toISOString(),
-    };
-
-    setGrades(
-      (current) => [
-        grade,
-        ...current,
-      ]
-    );
-
-    setGradeScore("");
-    setGradeTotal("");
-  }
-
-  function deleteGrade(
-    id: string
-  ) {
-    setGrades(
-      (current) =>
-        current.filter(
-          (grade) =>
-            grade.id !== id
-        )
-    );
-  }
-
   function saveStudentName() {
-    const trimmedName =
+    const trimmed =
       studentName.trim();
 
-    if (!trimmedName) {
+    if (!trimmed) {
       return;
     }
 
     setStudentName(
-      trimmedName
+      trimmed
     );
 
     localStorage.setItem(
       "masar-student-name",
-      trimmedName
+      trimmed
     );
   }
 
-  // ==========================================
-  // Today view
-  // ==========================================
+  function navigateTo(
+    view: View
+  ) {
+    setActiveView(view);
+
+    setMobileMenuOpen(false);
+  }
 
   function renderToday() {
     return (
@@ -804,7 +646,7 @@ export default function Home() {
             formattedDate
           }
           title={`${greeting} يا ${studentName}`}
-          subtitle="دي خطتك لليوم. ركّز على الخطوة اللي قدامك."
+          subtitle="دي أهم حاجة محتاج تعملها النهارده."
         />
 
         {todayPlan.rest && (
@@ -818,58 +660,70 @@ export default function Home() {
             </h2>
 
             <p className="mt-4 max-w-xl leading-7 text-[#A1A1A6]">
-              مفيش مهام مذاكرة
-              أساسية النهارده.
+              مفيش مذاكرة أساسية
+              مطلوبة النهارده.
             </p>
 
-            <div className="mt-8 rounded-[22px] bg-white/10 p-5">
-              <p className="text-sm font-medium">
-                التقرير الأسبوعي
+            <button
+              type="button"
+              onClick={() =>
+                navigateTo(
+                  "progress"
+                )
+              }
+              className="mt-8 rounded-full bg-white px-5 py-3 text-sm font-medium text-black transition hover:scale-[1.02]"
+            >
+              شوف تقدم الأسبوع
+            </button>
+          </section>
+        )}
+
+        {todayPlan.catchUp && (
+          <section className="rounded-[32px] bg-white p-7 sm:p-9">
+            <p className="text-xs font-medium text-[#0071E3]">
+              الخميس
+            </p>
+
+            <h2 className="mt-3 text-2xl font-semibold">
+              مراجعة وتراكمات
+            </h2>
+
+            <p className="mt-3 text-sm leading-7 text-[#6E6E73]">
+              يوم مرن للمراجعة
+              والحاجات اللي محتاجة
+              تثبيت.
+            </p>
+
+            <div className="mt-6 rounded-[22px] bg-[#F5F5F7] p-5">
+              <p className="text-xs text-[#86868B]">
+                نقاط محتاجة مراجعة
               </p>
 
-              <p className="mt-2 text-sm text-[#A1A1A6]">
-                التقرير هيعتمد
-                على جلساتك ودرجاتك
-                الفعلية.
+              <p className="mt-2 text-2xl font-semibold">
+                {
+                  openWeakPointsCount
+                }
+              </p>
+
+              <p className="mt-2 text-xs text-[#86868B]">
+                هنرتبهم لك حسب
+                الأولوية في الخطوة
+                القادمة.
               </p>
             </div>
           </section>
         )}
 
-        {todayPlan.catchUp && (
-          <section className="rounded-[32px] bg-white p-7 sm:p-10">
-            <p className="text-sm font-medium text-[#0071E3]">
-              Catch-up
-            </p>
-
-            <h2 className="mt-3 text-3xl font-semibold tracking-tight">
-              يوم المراجعة
-              والتراكمات
-            </h2>
-
-            <p className="mt-4 max-w-xl leading-7 text-[#6E6E73]">
-              مفيش مادة ثابتة
-              النهارده. التراكمات
-              اللي هنسجلها بعدين
-              هتظهر هنا.
-            </p>
-          </section>
-        )}
-
         {!todayPlan.rest &&
           !todayPlan.catchUp && (
-            <div className="grid gap-5 xl:grid-cols-[1.55fr_0.75fr]">
+            <div className="grid gap-5 xl:grid-cols-[1.5fr_0.65fr]">
               <section className="overflow-hidden rounded-[32px] bg-white">
                 <div className="border-b border-[#ECECEF] p-6 sm:p-8">
-                  <div className="mb-5 flex items-center gap-2">
-                    <span className="h-2 w-2 rounded-full bg-[#0071E3]" />
+                  <p className="text-xs font-medium text-[#0071E3]">
+                    مذاكرة اليوم
+                  </p>
 
-                    <span className="text-xs font-medium text-[#0071E3]">
-                      خطة اليوم
-                    </span>
-                  </div>
-
-                  <h2 className="text-3xl font-semibold tracking-tight text-black">
+                  <h2 className="mt-3 text-3xl font-semibold tracking-tight">
                     {
                       todayPlan.subject
                     }
@@ -883,31 +737,6 @@ export default function Home() {
                 </div>
 
                 <div className="p-6 sm:p-8">
-                  <div className="mb-6 flex items-center justify-between">
-                    <div>
-                      <p className="text-sm font-medium">
-                        مهام اليوم
-                      </p>
-
-                      <p className="mt-1 text-xs text-[#86868B]">
-                        تقدمك بيتحفظ
-                        تلقائيًا
-                      </p>
-                    </div>
-
-                    <span className="text-sm text-[#6E6E73]">
-                      {
-                        completedTasks.length
-                      }
-                      /
-                      {
-                        todayPlan
-                          .tasks
-                          .length
-                      }
-                    </span>
-                  </div>
-
                   <div className="space-y-2">
                     {todayPlan.tasks.map(
                       (
@@ -930,14 +759,14 @@ export default function Home() {
                                 index
                               )
                             }
-                            className={`flex w-full items-center gap-4 rounded-[18px] border px-4 py-4 text-right transition ${
+                            className={`flex w-full items-center gap-4 rounded-[18px] border px-4 py-4 text-right transition-all duration-200 ${
                               completed
                                 ? "border-transparent bg-[#F5F5F7]"
                                 : "border-[#ECECEF] hover:border-[#D2D2D7] hover:bg-[#FAFAFA]"
                             }`}
                           >
                             <span
-                              className={`flex h-6 w-6 shrink-0 items-center justify-center rounded-full border ${
+                              className={`flex h-6 w-6 shrink-0 items-center justify-center rounded-full border transition-all duration-200 ${
                                 completed
                                   ? "border-[#0071E3] bg-[#0071E3] text-white"
                                   : "border-[#C7C7CC]"
@@ -949,7 +778,7 @@ export default function Home() {
                             </span>
 
                             <span
-                              className={`text-sm ${
+                              className={`text-sm transition-all duration-200 ${
                                 completed
                                   ? "text-[#86868B] line-through"
                                   : ""
@@ -965,27 +794,21 @@ export default function Home() {
 
                   {todayPlan.optionalTasks
                     ?.length ? (
-                    <div className="mt-7">
-                      <p className="mb-3 text-xs text-[#86868B]">
-                        مهمة إضافية
+                    <div className="mt-5 rounded-[18px] bg-[#F5F5F7] p-4">
+                      <p className="text-xs text-[#86868B]">
+                        اختياري
                       </p>
 
-                      {todayPlan.optionalTasks.map(
-                        (task) => (
-                          <div
-                            key={
-                              task
-                            }
-                            className="rounded-[18px] bg-[#F5F5F7] p-4 text-sm"
-                          >
-                            {task}
-                          </div>
-                        )
-                      )}
+                      <p className="mt-2 text-sm">
+                        {
+                          todayPlan
+                            .optionalTasks[0]
+                        }
+                      </p>
                     </div>
                   ) : null}
 
-                  <div className="mt-8">
+                  <div className="mt-7">
                     <div className="mb-3 flex justify-between text-xs">
                       <span className="text-[#86868B]">
                         تقدم اليوم
@@ -998,7 +821,7 @@ export default function Home() {
 
                     <div className="h-[6px] overflow-hidden rounded-full bg-[#E8E8ED]">
                       <div
-                        className="h-full rounded-full bg-[#0071E3] transition-all duration-500"
+                        className="h-full rounded-full bg-[#0071E3] transition-all duration-500 ease-out"
                         style={{
                           width: `${progress}%`,
                         }}
@@ -1011,64 +834,49 @@ export default function Home() {
                     onClick={
                       startTodaySession
                     }
-                    className="mt-8 rounded-full bg-[#0071E3] px-6 py-3.5 text-sm font-medium text-white transition hover:bg-[#0077ED]"
+                    className="mt-7 w-full rounded-full bg-[#0071E3] px-6 py-4 text-sm font-medium text-white transition-all duration-200 hover:scale-[1.01] hover:bg-[#0077ED] sm:w-auto"
                   >
                     ابدأ المذاكرة
                   </button>
                 </div>
               </section>
 
-              <div className="space-y-5">
+              <div className="space-y-4">
                 <InfoCard
-                  label="وقت التركيز اليوم"
+                  label="ذاكرت النهارده"
                   value={formatFocusTime(
                     todayFocusSeconds
                   )}
-                  note="من جلسات المذاكرة المسجلة."
                 />
 
                 <InfoCard
-                  label="الدرجات"
-                  value={
-                    grades.length
-                      ? `${grades.length} تقييم`
-                      : "لا توجد درجات"
-                  }
-                  note={
-                    grades.length
-                      ? "افتح صفحة الدرجات للتفاصيل."
-                      : "أضف أول تقييم لما تستلمه."
-                  }
+                  label="نقاط للمراجعة"
+                  value={`${openWeakPointsCount}`}
                 />
 
-                <InfoCard
-                  label="نقاط الضعف"
-                  value="لا توجد بيانات"
-                  note="هنضيف تسجيل نقاط الضعف بعدين."
-                />
+                <button
+                  type="button"
+                  onClick={() =>
+                    navigateTo(
+                      "progress"
+                    )
+                  }
+                  className="w-full rounded-[24px] bg-white p-5 text-right transition-all duration-200 hover:-translate-y-0.5"
+                >
+                  <p className="text-xs text-[#86868B]">
+                    تقدمك
+                  </p>
+
+                  <p className="mt-2 text-sm font-medium text-[#0071E3]">
+                    افتح الملخص ←
+                  </p>
+                </button>
               </div>
             </div>
           )}
-
-        {(todayPlan.rest ||
-          todayPlan.catchUp) && (
-          <div className="mt-5">
-            <InfoCard
-              label="وقت التركيز اليوم"
-              value={formatFocusTime(
-                todayFocusSeconds
-              )}
-              note="من جلسات المذاكرة المسجلة."
-            />
-          </div>
-        )}
       </>
     );
   }
-
-  // ==========================================
-  // Weekly plan
-  // ==========================================
 
   function renderPlan() {
     const orderedDays = [
@@ -1085,8 +893,8 @@ export default function Home() {
       <>
         <PageHeader
           eyebrow="الأسبوع"
-          title="خطتي"
-          subtitle="الجدول الثابت من السبت للجمعة."
+          title="الخطة الأسبوعية"
+          subtitle="جدول بسيط يوضح المادة الأساسية لكل يوم."
         />
 
         <div className="grid gap-4 lg:grid-cols-2">
@@ -1099,10 +907,8 @@ export default function Home() {
 
               return (
                 <section
-                  key={
-                    plan.day
-                  }
-                  className="rounded-[28px] bg-white p-6"
+                  key={plan.day}
+                  className="rounded-[26px] bg-white p-6 transition-all duration-200 hover:-translate-y-0.5"
                 >
                   <p className="text-sm font-semibold">
                     {plan.day}
@@ -1137,46 +943,23 @@ export default function Home() {
                     </h2>
                   )}
 
-                  {plan.tasks
-                    .length >
+                  {plan.tasks.length >
                     0 && (
-                    <div className="mt-6 space-y-3">
+                    <div className="mt-5 space-y-2">
                       {plan.tasks.map(
                         (task) => (
-                          <div
+                          <p
                             key={
                               task
                             }
-                            className="flex gap-3 text-sm text-[#6E6E73]"
+                            className="text-sm leading-6 text-[#6E6E73]"
                           >
-                            <span>
-                              —
-                            </span>
-
-                            <span>
-                              {task}
-                            </span>
-                          </div>
+                            — {task}
+                          </p>
                         )
                       )}
                     </div>
                   )}
-
-                  {plan.optionalTasks
-                    ?.length ? (
-                    <div className="mt-5 rounded-[18px] bg-[#F5F5F7] p-4">
-                      <p className="text-xs text-[#86868B]">
-                        إضافي
-                      </p>
-
-                      <p className="mt-2 text-sm">
-                        {
-                          plan
-                            .optionalTasks[0]
-                        }
-                      </p>
-                    </div>
-                  ) : null}
                 </section>
               );
             }
@@ -1186,21 +969,17 @@ export default function Home() {
     );
   }
 
-  // ==========================================
-  // Main timer
-  // ==========================================
-
   function renderTimer() {
     return (
       <>
         <PageHeader
           eyebrow="Focus"
           title="المؤقت"
-          subtitle="كل جلسة بتتسجل للمادة اللي اخترتها."
+          subtitle="اختار المادة، حدد هدفك، وابدأ."
         />
 
-        <section className="mx-auto max-w-3xl rounded-[36px] bg-white p-6 sm:p-10">
-          <div className="flex flex-wrap gap-2">
+        <section className="mx-auto max-w-3xl rounded-[34px] bg-white p-6 sm:p-10">
+          <div className="flex justify-center gap-2">
             {[25, 50, 55].map(
               (minutes) => (
                 <button
@@ -1214,14 +993,14 @@ export default function Home() {
                       minutes
                     )
                   }
-                  className={`rounded-full px-4 py-2 text-sm transition ${
+                  className={`rounded-full px-4 py-2.5 text-sm transition-all duration-200 ${
                     timerMinutes ===
                     minutes
                       ? "bg-black text-white"
-                      : "bg-[#F5F5F7] text-[#6E6E73]"
+                      : "bg-[#F5F5F7] text-[#6E6E73] hover:bg-[#E8E8ED]"
                   } disabled:opacity-50`}
                 >
-                  {minutes} دقيقة
+                  {minutes}
                 </button>
               )
             )}
@@ -1283,7 +1062,7 @@ export default function Home() {
                       .value
                   )
                 }
-                placeholder="مثال: حل 30 سؤال"
+                placeholder="هتنجز إيه؟"
                 className={
                   inputClass
                 }
@@ -1291,27 +1070,27 @@ export default function Home() {
             </Field>
           </div>
 
-          <div className="py-14 text-center">
+          <div className="py-12 text-center">
             <p className="text-sm text-[#86868B]">
               {
                 selectedSubject
               }
             </p>
 
-            {sessionGoal && (
-              <p className="mt-2 text-sm font-medium">
-                {sessionGoal}
-              </p>
-            )}
-
             <div
               dir="ltr"
-              className="mt-8 text-[76px] font-semibold tracking-[-0.06em] text-black sm:text-[110px]"
+              className="mt-6 text-[76px] font-semibold tracking-[-0.06em] sm:text-[110px]"
             >
               {formatTimer(
                 secondsLeft
               )}
             </div>
+
+            {sessionGoal && (
+              <p className="mt-4 text-sm text-[#6E6E73]">
+                {sessionGoal}
+              </p>
+            )}
           </div>
 
           <div className="flex flex-col justify-center gap-3 sm:flex-row">
@@ -1325,7 +1104,7 @@ export default function Home() {
                 onClick={
                   startTimer
                 }
-                className="rounded-full bg-[#0071E3] px-8 py-4 text-sm font-medium text-white disabled:cursor-not-allowed disabled:opacity-40"
+                className="rounded-full bg-[#0071E3] px-9 py-4 text-sm font-medium text-white transition-all duration-200 hover:scale-[1.02] disabled:opacity-40"
               >
                 {secondsLeft ===
                 timerMinutes *
@@ -1339,9 +1118,9 @@ export default function Home() {
                 onClick={
                   pauseTimer
                 }
-                className="rounded-full bg-black px-8 py-4 text-sm font-medium text-white"
+                className="rounded-full bg-black px-9 py-4 text-sm font-medium text-white transition-all duration-200 hover:scale-[1.02]"
               >
-                إيقاف مؤقت
+                إيقاف
               </button>
             )}
 
@@ -1350,23 +1129,15 @@ export default function Home() {
               onClick={
                 resetTimer
               }
-              className="rounded-full bg-[#F5F5F7] px-8 py-4 text-sm font-medium"
+              className="rounded-full bg-[#F5F5F7] px-9 py-4 text-sm font-medium transition-all duration-200 hover:bg-[#E8E8ED]"
             >
               إعادة
             </button>
           </div>
 
-          {secondsLeft ===
-            0 && (
-            <p className="mt-6 text-center text-sm font-medium text-[#34C759]">
-              انتهت الجلسة ✓
-            </p>
-          )}
-
-          <div className="mt-10 border-t border-[#ECECEF] pt-6 text-center">
+          <div className="mt-9 border-t border-[#ECECEF] pt-6 text-center">
             <p className="text-xs text-[#86868B]">
-              وقت التركيز المسجل
-              اليوم
+              وقت اليوم
             </p>
 
             <p className="mt-2 text-lg font-semibold">
@@ -1380,259 +1151,13 @@ export default function Home() {
     );
   }
 
-  // ==========================================
-  // Grades
-  // ==========================================
-
-  function renderGrades() {
-    return (
-      <>
-        <PageHeader
-          eyebrow="Assessments"
-          title="الدرجات"
-          subtitle="سجّل درجاتك الفعلية عشان نستخدمها في التحليل."
-        />
-
-        <div className="grid gap-5 xl:grid-cols-[0.8fr_1.2fr]">
-          <form
-            onSubmit={
-              addGrade
-            }
-            className="rounded-[28px] bg-white p-6"
-          >
-            <h2 className="text-lg font-semibold">
-              إضافة تقييم
-            </h2>
-
-            <div className="mt-6 space-y-5">
-              <Field label="المادة">
-                <select
-                  value={
-                    gradeSubject
-                  }
-                  onChange={(
-                    event
-                  ) =>
-                    setGradeSubject(
-                      event.target
-                        .value
-                    )
-                  }
-                  className={
-                    inputClass
-                  }
-                >
-                  {subjects.map(
-                    (subject) => (
-                      <option
-                        key={
-                          subject.name
-                        }
-                        value={
-                          subject.name
-                        }
-                      >
-                        {
-                          subject.name
-                        }
-                      </option>
-                    )
-                  )}
-                </select>
-              </Field>
-
-              <Field label="نوع التقييم">
-                <select
-                  value={
-                    gradeType
-                  }
-                  onChange={(
-                    event
-                  ) =>
-                    setGradeType(
-                      event.target
-                        .value as Grade["type"]
-                    )
-                  }
-                  className={
-                    inputClass
-                  }
-                >
-                  <option value="Quiz">
-                    Quiz
-                  </option>
-
-                  <option value="Homework">
-                    Homework
-                  </option>
-
-                  <option value="Exam">
-                    Exam
-                  </option>
-                </select>
-              </Field>
-
-              <div className="grid grid-cols-2 gap-3">
-                <Field label="درجتك">
-                  <input
-                    type="number"
-                    min="0"
-                    value={
-                      gradeScore
-                    }
-                    onChange={(
-                      event
-                    ) =>
-                      setGradeScore(
-                        event.target
-                          .value
-                      )
-                    }
-                    className={
-                      inputClass
-                    }
-                  />
-                </Field>
-
-                <Field label="من">
-                  <input
-                    type="number"
-                    min="1"
-                    value={
-                      gradeTotal
-                    }
-                    onChange={(
-                      event
-                    ) =>
-                      setGradeTotal(
-                        event.target
-                          .value
-                      )
-                    }
-                    className={
-                      inputClass
-                    }
-                  />
-                </Field>
-              </div>
-            </div>
-
-            <button
-              type="submit"
-              className="mt-7 w-full rounded-full bg-[#0071E3] px-5 py-3.5 text-sm font-medium text-white"
-            >
-              حفظ الدرجة
-            </button>
-          </form>
-
-          <section className="rounded-[28px] bg-white p-6">
-            <div className="flex items-center justify-between gap-4">
-              <h2 className="text-lg font-semibold">
-                التقييمات
-              </h2>
-
-              {gradeAverage !==
-                null && (
-                <span className="rounded-full bg-[#F5F5F7] px-4 py-2 text-sm">
-                  المتوسط{" "}
-                  {
-                    gradeAverage
-                  }
-                  %
-                </span>
-              )}
-            </div>
-
-            {grades.length ===
-            0 ? (
-              <EmptyState text="مفيش أي درجات مسجلة لسه." />
-            ) : (
-              <div className="mt-6 space-y-3">
-                {grades.map(
-                  (grade) => {
-                    const percentage =
-                      Math.round(
-                        (grade.score /
-                          grade.total) *
-                          100
-                      );
-
-                    return (
-                      <div
-                        key={
-                          grade.id
-                        }
-                        className="flex items-center justify-between gap-4 rounded-[20px] bg-[#F5F5F7] p-4"
-                      >
-                        <div>
-                          <p className="text-sm font-medium">
-                            {
-                              grade.subject
-                            }
-                          </p>
-
-                          <p className="mt-1 text-xs text-[#86868B]">
-                            {
-                              grade.type
-                            }
-                          </p>
-                        </div>
-
-                        <div className="flex items-center gap-4">
-                          <div className="text-left">
-                            <p className="text-sm font-semibold">
-                              {
-                                grade.score
-                              }
-                              /
-                              {
-                                grade.total
-                              }
-                            </p>
-
-                            <p className="text-xs text-[#86868B]">
-                              {
-                                percentage
-                              }
-                              %
-                            </p>
-                          </div>
-
-                          <button
-                            type="button"
-                            onClick={() =>
-                              deleteGrade(
-                                grade.id
-                              )
-                            }
-                            className="text-xs text-[#86868B] transition hover:text-red-500"
-                          >
-                            حذف
-                          </button>
-                        </div>
-                      </div>
-                    );
-                  }
-                )}
-              </div>
-            )}
-          </section>
-        </div>
-      </>
-    );
-  }
-
-  // ==========================================
-  // Settings
-  // ==========================================
-
   function renderSettings() {
     return (
       <>
         <PageHeader
           eyebrow="Masar"
           title="الإعدادات"
-          subtitle="خلي مسار مناسب لطريقتك في المذاكرة."
+          subtitle="إعدادات بسيطة للمذاكرة."
         />
 
         <section className="max-w-2xl rounded-[28px] bg-white p-6 sm:p-8">
@@ -1645,8 +1170,7 @@ export default function Home() {
                 event
               ) =>
                 setStudentName(
-                  event.target
-                    .value
+                  event.target.value
                 )
               }
               className={
@@ -1655,13 +1179,12 @@ export default function Home() {
             />
           </Field>
 
-          <div className="mt-6">
+          <div className="mt-7">
             <p className="text-xs text-[#86868B]">
-              مدة التركيز
-              الافتراضية
+              مدة الجلسة الافتراضية
             </p>
 
-            <div className="mt-3 flex flex-wrap gap-2">
+            <div className="mt-3 flex gap-2">
               {[25, 50, 55].map(
                 (minutes) => (
                   <button
@@ -1677,12 +1200,12 @@ export default function Home() {
                         minutes
                       )
                     }
-                    className={`rounded-full px-4 py-2.5 text-sm ${
+                    className={`rounded-full px-4 py-2.5 text-sm transition-all duration-200 ${
                       timerMinutes ===
                       minutes
                         ? "bg-black text-white"
-                        : "bg-[#F5F5F7]"
-                    } disabled:opacity-50`}
+                        : "bg-[#F5F5F7] hover:bg-[#E8E8ED]"
+                    }`}
                   >
                     {minutes} دقيقة
                   </button>
@@ -1691,39 +1214,22 @@ export default function Home() {
             </div>
           </div>
 
-          <div className="mt-6 rounded-[20px] bg-[#F5F5F7] p-5">
-            <p className="text-sm font-medium">
-              يوم الراحة
-            </p>
-
-            <p className="mt-1 text-sm text-[#86868B]">
-              الجمعة
-            </p>
-          </div>
-
           <button
             type="button"
             onClick={
               saveStudentName
             }
-            className="mt-7 rounded-full bg-[#0071E3] px-6 py-3.5 text-sm font-medium text-white"
+            className="mt-8 rounded-full bg-[#0071E3] px-6 py-3.5 text-sm font-medium text-white transition-all duration-200 hover:scale-[1.02]"
           >
-            حفظ الإعدادات
+            حفظ
           </button>
         </section>
       </>
     );
   }
 
-  // ==========================================
-  // Content router
-  // ==========================================
-
   function renderContent() {
     switch (activeView) {
-      case "plan":
-        return renderPlan();
-
       case "subjects":
         return (
           <SubjectsView />
@@ -1732,13 +1238,13 @@ export default function Home() {
       case "timer":
         return renderTimer();
 
-      case "grades":
-        return renderGrades();
-
-      case "analytics":
+      case "progress":
         return (
-          <AnalyticsView />
+          <ProgressView />
         );
+
+      case "plan":
+        return renderPlan();
 
       case "settings":
         return renderSettings();
@@ -1753,11 +1259,9 @@ export default function Home() {
     return (
       <div
         dir="rtl"
-        className="flex min-h-screen items-center justify-center bg-[#F5F5F7] text-[#86868B]"
+        className="flex min-h-screen items-center justify-center bg-[#F5F5F7] text-sm text-[#86868B]"
       >
-        <p className="text-sm">
-          جاري تجهيز مسار...
-        </p>
+        جاري تجهيز مسار...
       </div>
     );
   }
@@ -1768,13 +1272,12 @@ export default function Home() {
       className="min-h-screen bg-[#F5F5F7] text-[#1D1D1F]"
     >
       <div className="mx-auto flex min-h-screen max-w-[1600px]">
-        {/* Desktop Sidebar */}
-        <aside className="sticky top-0 hidden h-screen w-[230px] shrink-0 px-5 py-6 lg:block">
+        <aside className="sticky top-0 hidden h-screen w-[225px] shrink-0 px-5 py-6 lg:block">
           <div className="flex h-full flex-col rounded-[30px] bg-white p-4">
             <button
               type="button"
               onClick={() =>
-                setActiveView(
+                navigateTo(
                   "today"
                 )
               }
@@ -1797,8 +1300,8 @@ export default function Home() {
               </div>
             </button>
 
-            <nav className="mt-6 space-y-1">
-              {navigation.map(
+            <nav className="mt-7 space-y-1">
+              {mainNavigation.map(
                 (item) => {
                   const active =
                     activeView ===
@@ -1811,17 +1314,17 @@ export default function Home() {
                       }
                       type="button"
                       onClick={() =>
-                        setActiveView(
+                        navigateTo(
                           item.id
                         )
                       }
-                      className={`flex w-full items-center gap-3 rounded-[15px] px-3 py-3 text-sm transition ${
+                      className={`flex w-full items-center gap-3 rounded-[15px] px-3 py-3 text-sm transition-all duration-200 ${
                         active
                           ? "bg-[#F5F5F7] font-medium text-black"
-                          : "text-[#6E6E73] hover:bg-[#F5F5F7] hover:text-black"
+                          : "text-[#6E6E73] hover:bg-[#F5F5F7]"
                       }`}
                     >
-                      <span className="flex h-8 w-8 items-center justify-center rounded-[10px] text-xs">
+                      <span className="flex h-8 w-8 items-center justify-center text-xs">
                         {
                           item.symbol
                         }
@@ -1839,38 +1342,59 @@ export default function Home() {
             </nav>
 
             <div className="mt-auto border-t border-[#ECECEF] pt-4">
-              <div className="rounded-2xl p-3">
-                <div className="flex items-center gap-3">
-                  <div className="flex h-9 w-9 items-center justify-center rounded-full bg-black text-xs text-white">
-                    {studentName.charAt(
-                      0
-                    )}
-                  </div>
+              <button
+                type="button"
+                onClick={() =>
+                  navigateTo(
+                    "plan"
+                  )
+                }
+                className="w-full rounded-[14px] px-3 py-2.5 text-right text-xs text-[#6E6E73] transition-all duration-200 hover:bg-[#F5F5F7]"
+              >
+                الخطة الأسبوعية
+              </button>
 
-                  <div>
-                    <p className="text-sm font-medium">
-                      {
-                        studentName
-                      }
-                    </p>
+              <button
+                type="button"
+                onClick={() =>
+                  navigateTo(
+                    "settings"
+                  )
+                }
+                className="mt-1 w-full rounded-[14px] px-3 py-2.5 text-right text-xs text-[#6E6E73] transition-all duration-200 hover:bg-[#F5F5F7]"
+              >
+                الإعدادات
+              </button>
 
-                    <p className="mt-0.5 text-xs text-[#86868B]">
-                      تانية بكالوريا
-                    </p>
-                  </div>
+              <div className="mt-3 flex items-center gap-3 px-3 py-2">
+                <div className="flex h-9 w-9 items-center justify-center rounded-full bg-black text-xs text-white">
+                  {studentName.charAt(
+                    0
+                  )}
+                </div>
+
+                <div>
+                  <p className="text-sm font-medium">
+                    {
+                      studentName
+                    }
+                  </p>
+
+                  <p className="text-[11px] text-[#86868B]">
+                    تانية بكالوريا
+                  </p>
                 </div>
               </div>
             </div>
           </div>
         </aside>
 
-        {/* Main */}
-        <main className="min-w-0 flex-1 px-4 pb-28 pt-6 sm:px-6 lg:px-10 lg:pb-10 lg:pt-8">
-          <div className="mb-8 flex items-center justify-between lg:hidden">
+        <main className="min-w-0 flex-1 px-4 pb-28 pt-5 sm:px-6 lg:px-10 lg:pb-10 lg:pt-8">
+          <div className="relative mb-8 flex items-center justify-between lg:hidden">
             <button
               type="button"
               onClick={() =>
-                setActiveView(
+                navigateTo(
                   "today"
                 )
               }
@@ -1880,35 +1404,65 @@ export default function Home() {
                 مسار
               </p>
 
-              <p className="mt-1 text-xs text-[#86868B]">
-                مذاكرتك، في مسار
-                واضح
+              <p className="mt-1 text-[11px] text-[#86868B]">
+                مذاكرتك، في مسار واضح
               </p>
             </button>
 
             <button
               type="button"
               onClick={() =>
-                setActiveView(
-                  "timer"
+                setMobileMenuOpen(
+                  (current) =>
+                    !current
                 )
               }
-              className="rounded-full bg-black px-4 py-2.5 text-xs font-medium text-white"
+              className="flex h-10 w-10 items-center justify-center rounded-full bg-white text-lg transition-all duration-200 hover:bg-[#ECECEF]"
             >
-              جلسة مذاكرة
+              ···
             </button>
+
+            {mobileMenuOpen && (
+              <div className="absolute left-0 top-12 z-50 w-48 animate-[fadeIn_.18s_ease-out] rounded-[20px] border border-black/5 bg-white p-2 shadow-xl">
+                <button
+                  type="button"
+                  onClick={() =>
+                    navigateTo(
+                      "plan"
+                    )
+                  }
+                  className="w-full rounded-[14px] px-4 py-3 text-right text-sm transition hover:bg-[#F5F5F7]"
+                >
+                  الخطة الأسبوعية
+                </button>
+
+                <button
+                  type="button"
+                  onClick={() =>
+                    navigateTo(
+                      "settings"
+                    )
+                  }
+                  className="w-full rounded-[14px] px-4 py-3 text-right text-sm transition hover:bg-[#F5F5F7]"
+                >
+                  الإعدادات
+                </button>
+              </div>
+            )}
           </div>
 
-          {renderContent()}
+          <SmoothView
+            viewKey={activeView}
+          >
+            {renderContent()}
+          </SmoothView>
         </main>
       </div>
 
-      {/* Mobile Navigation */}
       <nav className="fixed bottom-3 left-3 right-3 z-40 rounded-[24px] border border-black/5 bg-white/95 p-2 shadow-[0_8px_30px_rgba(0,0,0,0.08)] backdrop-blur-xl lg:hidden">
-        <div className="grid grid-cols-5">
-          {navigation
-            .slice(0, 5)
-            .map((item) => {
+        <div className="grid grid-cols-4">
+          {mainNavigation.map(
+            (item) => {
               const active =
                 activeView ===
                 item.id;
@@ -1920,11 +1474,11 @@ export default function Home() {
                   }
                   type="button"
                   onClick={() =>
-                    setActiveView(
+                    navigateTo(
                       item.id
                     )
                   }
-                  className={`rounded-[16px] px-2 py-2 text-center ${
+                  className={`rounded-[16px] px-2 py-2 text-center transition-all duration-200 ${
                     active
                       ? "bg-[#F5F5F7] text-black"
                       : "text-[#86868B]"
@@ -1943,7 +1497,8 @@ export default function Home() {
                   </span>
                 </button>
               );
-            })}
+            }
+          )}
         </div>
       </nav>
     </div>
@@ -1960,7 +1515,7 @@ function PageHeader({
   subtitle: string;
 }) {
   return (
-    <header className="mb-9">
+    <header className="mb-8">
       <p className="mb-2 text-sm text-[#86868B]">
         {eyebrow}
       </p>
@@ -1979,14 +1534,12 @@ function PageHeader({
 function InfoCard({
   label,
   value,
-  note,
 }: {
   label: string;
   value: string;
-  note: string;
 }) {
   return (
-    <section className="rounded-[28px] bg-white p-6">
+    <section className="rounded-[24px] bg-white p-5 transition-all duration-200 hover:-translate-y-0.5">
       <p className="text-xs text-[#86868B]">
         {label}
       </p>
@@ -1994,25 +1547,7 @@ function InfoCard({
       <p className="mt-3 text-2xl font-semibold tracking-tight">
         {value}
       </p>
-
-      <p className="mt-3 text-xs leading-5 text-[#86868B]">
-        {note}
-      </p>
     </section>
-  );
-}
-
-function EmptyState({
-  text,
-}: {
-  text: string;
-}) {
-  return (
-    <div className="mt-6 rounded-[22px] bg-[#F5F5F7] px-5 py-10 text-center">
-      <p className="text-sm text-[#86868B]">
-        {text}
-      </p>
-    </div>
   );
 }
 
