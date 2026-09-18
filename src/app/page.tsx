@@ -3,12 +3,25 @@
 import {
   type FormEvent,
   type ReactNode,
+  useCallback,
   useEffect,
   useMemo,
+  useRef,
   useState,
 } from "react";
 
+import AnalyticsView from "@/components/AnalyticsView";
 import SubjectsView from "@/components/SubjectsView";
+
+import { curriculum } from "@/data/curriculumData";
+
+import {
+  addStudySession,
+  getLocalDateKey,
+  loadStudySessions,
+  type StudySession,
+} from "@/data/sessionData";
+
 import {
   subjects,
   weeklyPlan,
@@ -37,11 +50,31 @@ const navigation: {
   label: string;
   symbol: string;
 }[] = [
-  { id: "today", label: "اليوم", symbol: "●" },
-  { id: "plan", label: "خطتي", symbol: "□" },
-  { id: "subjects", label: "المواد", symbol: "◫" },
-  { id: "timer", label: "المؤقت", symbol: "◷" },
-  { id: "grades", label: "الدرجات", symbol: "✓" },
+  {
+    id: "today",
+    label: "اليوم",
+    symbol: "●",
+  },
+  {
+    id: "plan",
+    label: "خطتي",
+    symbol: "□",
+  },
+  {
+    id: "subjects",
+    label: "المواد",
+    symbol: "◫",
+  },
+  {
+    id: "timer",
+    label: "المؤقت",
+    symbol: "◷",
+  },
+  {
+    id: "grades",
+    label: "الدرجات",
+    symbol: "✓",
+  },
   {
     id: "analytics",
     label: "التحليلات",
@@ -58,60 +91,97 @@ const inputClass =
   "mt-2 w-full rounded-[16px] border border-[#E5E5EA] bg-white px-4 py-3.5 text-sm outline-none transition placeholder:text-[#AEAEB2] focus:border-[#0071E3]";
 
 export default function Home() {
-  const [now, setNow] = useState<Date | null>(null);
+  const [now, setNow] =
+    useState<Date | null>(null);
 
   const [activeView, setActiveView] =
     useState<View>("today");
 
-  const [completedTasks, setCompletedTasks] =
-    useState<number[]>([]);
+  const [
+    completedTasks,
+    setCompletedTasks,
+  ] = useState<number[]>([]);
 
-  const [tasksLoaded, setTasksLoaded] =
-    useState(false);
+  const [
+    tasksLoaded,
+    setTasksLoaded,
+  ] = useState(false);
 
-  const [focusSeconds, setFocusSeconds] =
-    useState(0);
+  const [
+    studySessions,
+    setStudySessions,
+  ] = useState<StudySession[]>([]);
 
-  const [focusLoaded, setFocusLoaded] =
-    useState(false);
+  const [
+    timerRunning,
+    setTimerRunning,
+  ] = useState(false);
 
-  const [timerRunning, setTimerRunning] =
-    useState(false);
+  const [
+    timerMinutes,
+    setTimerMinutes,
+  ] = useState(50);
 
-  const [timerMinutes, setTimerMinutes] =
-    useState(50);
-
-  const [secondsLeft, setSecondsLeft] =
-    useState(50 * 60);
+  const [
+    secondsLeft,
+    setSecondsLeft,
+  ] = useState(50 * 60);
 
   const [
     selectedSubject,
     setSelectedSubject,
   ] = useState("اللغة العربية");
 
-  const [sessionGoal, setSessionGoal] =
-    useState("");
+  const [
+    sessionGoal,
+    setSessionGoal,
+  ] = useState("");
+
+  const timerStartedAtRef =
+    useRef<Date | null>(null);
+
+  const timerStartRemainingRef =
+    useRef<number | null>(null);
 
   const [grades, setGrades] =
     useState<Grade[]>([]);
 
-  const [gradesLoaded, setGradesLoaded] =
-    useState(false);
+  const [
+    gradesLoaded,
+    setGradesLoaded,
+  ] = useState(false);
 
-  const [gradeSubject, setGradeSubject] =
-    useState("اللغة العربية");
+  const [
+    gradeSubject,
+    setGradeSubject,
+  ] = useState("اللغة العربية");
 
-  const [gradeType, setGradeType] =
-    useState<Grade["type"]>("Quiz");
+  const [
+    gradeType,
+    setGradeType,
+  ] =
+    useState<Grade["type"]>(
+      "Quiz"
+    );
 
-  const [gradeScore, setGradeScore] =
-    useState("");
+  const [
+    gradeScore,
+    setGradeScore,
+  ] = useState("");
 
-  const [gradeTotal, setGradeTotal] =
-    useState("");
+  const [
+    gradeTotal,
+    setGradeTotal,
+  ] = useState("");
 
-  const [studentName, setStudentName] =
-    useState("حذيفة");
+  const [
+    studentName,
+    setStudentName,
+  ] = useState("حذيفة");
+
+  // ==========================================
+  // Current date
+  // ==========================================
 
   useEffect(() => {
     setNow(new Date());
@@ -121,37 +191,41 @@ export default function Home() {
     ? weeklyPlan[now.getDay()]
     : weeklyPlan[0];
 
-  const todayKey = useMemo(() => {
-    if (!now) return "";
+  const todayKey = useMemo(
+    () =>
+      now
+        ? getLocalDateKey(now)
+        : "",
+    [now]
+  );
 
-    return `${now.getFullYear()}-${String(
-      now.getMonth() + 1
-    ).padStart(2, "0")}-${String(
-      now.getDate()
-    ).padStart(2, "0")}`;
-  }, [now]);
+  const formattedDate =
+    useMemo(() => {
+      if (!now) return "";
 
-  const formattedDate = useMemo(() => {
-    if (!now) return "";
+      return new Intl.DateTimeFormat(
+        "ar-EG",
+        {
+          weekday: "long",
+          day: "numeric",
+          month: "long",
+          year: "numeric",
+        }
+      ).format(now);
+    }, [now]);
 
-    return new Intl.DateTimeFormat(
-      "ar-EG",
-      {
-        weekday: "long",
-        day: "numeric",
-        month: "long",
-        year: "numeric",
-      }
-    ).format(now);
-  }, [now]);
+  const greeting =
+    useMemo(() => {
+      if (!now) return "";
 
-  const greeting = useMemo(() => {
-    if (!now) return "";
+      return now.getHours() < 12
+        ? "صباح الخير"
+        : "مساء الخير";
+    }, [now]);
 
-    return now.getHours() < 12
-      ? "صباح الخير"
-      : "مساء الخير";
-  }, [now]);
+  // ==========================================
+  // Student settings
+  // ==========================================
 
   useEffect(() => {
     const savedName =
@@ -163,6 +237,10 @@ export default function Home() {
       setStudentName(savedName);
     }
   }, []);
+
+  // ==========================================
+  // Today's tasks
+  // ==========================================
 
   useEffect(() => {
     if (!todayKey) return;
@@ -177,10 +255,15 @@ export default function Home() {
 
     if (saved) {
       try {
-        const parsed = JSON.parse(saved);
+        const parsed =
+          JSON.parse(saved);
 
-        if (Array.isArray(parsed)) {
-          setCompletedTasks(parsed);
+        if (
+          Array.isArray(parsed)
+        ) {
+          setCompletedTasks(
+            parsed
+          );
         }
       } catch {
         setCompletedTasks([]);
@@ -191,11 +274,18 @@ export default function Home() {
   }, [todayKey]);
 
   useEffect(() => {
-    if (!todayKey || !tasksLoaded) return;
+    if (
+      !todayKey ||
+      !tasksLoaded
+    ) {
+      return;
+    }
 
     localStorage.setItem(
       `masar-completed-tasks-${todayKey}`,
-      JSON.stringify(completedTasks)
+      JSON.stringify(
+        completedTasks
+      )
     );
   }, [
     completedTasks,
@@ -203,50 +293,63 @@ export default function Home() {
     todayKey,
   ]);
 
+  // ==========================================
+  // Study sessions
+  // ==========================================
+
+  const refreshStudySessions =
+    useCallback(() => {
+      setStudySessions(
+        loadStudySessions()
+      );
+    }, []);
+
   useEffect(() => {
-    if (!todayKey) return;
+    refreshStudySessions();
+  }, [
+    activeView,
+    refreshStudySessions,
+  ]);
 
-    setFocusLoaded(false);
-    setFocusSeconds(0);
+  const todayFocusSeconds =
+    useMemo(() => {
+      if (!todayKey) return 0;
 
+      return studySessions
+        .filter(
+          (session) =>
+            session.dateKey ===
+            todayKey
+        )
+        .reduce(
+          (total, session) =>
+            total +
+            session.durationSeconds,
+          0
+        );
+    }, [
+      studySessions,
+      todayKey,
+    ]);
+
+  // ==========================================
+  // Grades
+  // ==========================================
+
+  useEffect(() => {
     const saved =
       localStorage.getItem(
-        `masar-focus-seconds-${todayKey}`
+        "masar-grades"
       );
 
     if (saved) {
-      const parsed = Number(saved);
-
-      if (!Number.isNaN(parsed)) {
-        setFocusSeconds(parsed);
-      }
-    }
-
-    setFocusLoaded(true);
-  }, [todayKey]);
-
-  useEffect(() => {
-    if (!todayKey || !focusLoaded) return;
-
-    localStorage.setItem(
-      `masar-focus-seconds-${todayKey}`,
-      String(focusSeconds)
-    );
-  }, [
-    focusSeconds,
-    focusLoaded,
-    todayKey,
-  ]);
-
-  useEffect(() => {
-    const saved =
-      localStorage.getItem("masar-grades");
-
-    if (saved) {
       try {
-        const parsed = JSON.parse(saved);
+        const parsed =
+          JSON.parse(saved);
 
-        if (Array.isArray(parsed)) {
+        if (
+          Array.isArray(parsed)
+        ) {
           setGrades(parsed);
         }
       } catch {
@@ -258,90 +361,261 @@ export default function Home() {
   }, []);
 
   useEffect(() => {
-    if (!gradesLoaded) return;
+    if (!gradesLoaded) {
+      return;
+    }
 
     localStorage.setItem(
       "masar-grades",
       JSON.stringify(grades)
     );
-  }, [grades, gradesLoaded]);
+  }, [
+    grades,
+    gradesLoaded,
+  ]);
+
+  // ==========================================
+  // Main timer save logic
+  // ==========================================
+
+  const saveMainTimerSegment =
+    useCallback(
+      (
+        remainingSeconds: number
+      ) => {
+        const startedAt =
+          timerStartedAtRef.current;
+
+        const startingRemaining =
+          timerStartRemainingRef.current;
+
+        if (
+          !startedAt ||
+          startingRemaining ===
+            null
+        ) {
+          return;
+        }
+
+        const durationSeconds =
+          Math.max(
+            0,
+            startingRemaining -
+              remainingSeconds
+          );
+
+        const subject =
+          curriculum.find(
+            (item) =>
+              item.name ===
+              selectedSubject
+          );
+
+        if (
+          durationSeconds > 0 &&
+          subject
+        ) {
+          addStudySession({
+            context: {
+              subjectId:
+                subject.id,
+              subjectName:
+                subject.name,
+              goal:
+                sessionGoal.trim() ||
+                undefined,
+            },
+            startedAt,
+            endedAt:
+              new Date(),
+            durationSeconds,
+          });
+        }
+
+        timerStartedAtRef.current =
+          null;
+
+        timerStartRemainingRef.current =
+          null;
+
+        refreshStudySessions();
+      },
+      [
+        selectedSubject,
+        sessionGoal,
+        refreshStudySessions,
+      ]
+    );
+
+  // ==========================================
+  // Main timer countdown
+  // ==========================================
 
   useEffect(() => {
-    if (!timerRunning) return;
+    if (!timerRunning) {
+      return;
+    }
 
     const interval =
       window.setInterval(() => {
-        setSecondsLeft((current) => {
-          if (current <= 1) {
-            setTimerRunning(false);
-            return 0;
-          }
-
-          setFocusSeconds(
-            (focus) => focus + 1
-          );
-
-          return current - 1;
-        });
+        setSecondsLeft(
+          (current) =>
+            Math.max(
+              current - 1,
+              0
+            )
+        );
       }, 1000);
 
     return () => {
-      window.clearInterval(interval);
+      window.clearInterval(
+        interval
+      );
     };
   }, [timerRunning]);
 
-  const progress = useMemo(() => {
-    if (!todayPlan.tasks.length) {
-      return 0;
+  useEffect(() => {
+    if (
+      timerRunning &&
+      secondsLeft === 0
+    ) {
+      saveMainTimerSegment(0);
+      setTimerRunning(false);
     }
-
-    return Math.round(
-      (completedTasks.length /
-        todayPlan.tasks.length) *
-        100
-    );
   }, [
-    completedTasks,
-    todayPlan.tasks.length,
+    timerRunning,
+    secondsLeft,
+    saveMainTimerSegment,
   ]);
 
-  const gradeAverage = useMemo(() => {
-    if (grades.length === 0) {
-      return null;
-    }
+  // ==========================================
+  // Calculations
+  // ==========================================
 
-    const values = grades.map(
-      (grade) =>
-        (grade.score / grade.total) *
-        100
-    );
+  const progress =
+    useMemo(() => {
+      if (
+        !todayPlan.tasks.length
+      ) {
+        return 0;
+      }
 
-    return Math.round(
-      values.reduce(
-        (sum, value) =>
-          sum + value,
-        0
-      ) / values.length
-    );
-  }, [grades]);
+      return Math.round(
+        (completedTasks.length /
+          todayPlan.tasks
+            .length) *
+          100
+      );
+    }, [
+      completedTasks,
+      todayPlan.tasks.length,
+    ]);
 
-  function toggleTask(index: number) {
-    setCompletedTasks((current) =>
-      current.includes(index)
-        ? current.filter(
-            (item) => item !== index
-          )
-        : [...current, index]
+  const gradeAverage =
+    useMemo(() => {
+      if (
+        grades.length === 0
+      ) {
+        return null;
+      }
+
+      const values =
+        grades.map(
+          (grade) =>
+            (grade.score /
+              grade.total) *
+            100
+        );
+
+      return Math.round(
+        values.reduce(
+          (sum, value) =>
+            sum + value,
+          0
+        ) / values.length
+      );
+    }, [grades]);
+
+  // ==========================================
+  // Tasks
+  // ==========================================
+
+  function toggleTask(
+    index: number
+  ) {
+    setCompletedTasks(
+      (current) =>
+        current.includes(index)
+          ? current.filter(
+              (item) =>
+                item !== index
+            )
+          : [
+              ...current,
+              index,
+            ]
     );
   }
+
+  // ==========================================
+  // Timer controls
+  // ==========================================
 
   function changeTimerDuration(
     minutes: number
   ) {
-    if (timerRunning) return;
+    if (timerRunning) {
+      return;
+    }
 
     setTimerMinutes(minutes);
-    setSecondsLeft(minutes * 60);
+
+    setSecondsLeft(
+      minutes * 60
+    );
+  }
+
+  function startTimer() {
+    if (
+      timerRunning ||
+      secondsLeft <= 0
+    ) {
+      return;
+    }
+
+    timerStartedAtRef.current =
+      new Date();
+
+    timerStartRemainingRef.current =
+      secondsLeft;
+
+    setTimerRunning(true);
+  }
+
+  function pauseTimer() {
+    if (!timerRunning) {
+      return;
+    }
+
+    saveMainTimerSegment(
+      secondsLeft
+    );
+
+    setTimerRunning(false);
+  }
+
+  function resetTimer() {
+    if (timerRunning) {
+      saveMainTimerSegment(
+        secondsLeft
+      );
+    }
+
+    setTimerRunning(false);
+
+    setSecondsLeft(
+      timerMinutes * 60
+    );
   }
 
   function startTodaySession() {
@@ -354,47 +628,63 @@ export default function Home() {
     const firstIncompleteTask =
       todayPlan.tasks.find(
         (_, index) =>
-          !completedTasks.includes(index)
+          !completedTasks.includes(
+            index
+          )
       );
 
     setSessionGoal(
-      firstIncompleteTask ?? ""
+      firstIncompleteTask ??
+        ""
     );
 
-    setActiveView("timer");
-  }
-
-  function resetTimer() {
-    setTimerRunning(false);
-
-    setSecondsLeft(
-      timerMinutes * 60
+    setActiveView(
+      "timer"
     );
   }
+
+  // ==========================================
+  // Formatting
+  // ==========================================
 
   function formatTimer(
     totalSeconds: number
   ) {
-    const minutes = Math.floor(
-      totalSeconds / 60
-    );
+    const minutes =
+      Math.floor(
+        totalSeconds / 60
+      );
 
     const seconds =
       totalSeconds % 60;
 
     return `${String(
       minutes
-    ).padStart(2, "0")}:${String(
+    ).padStart(
+      2,
+      "0"
+    )}:${String(
       seconds
-    ).padStart(2, "0")}`;
+    ).padStart(
+      2,
+      "0"
+    )}`;
   }
 
   function formatFocusTime(
     totalSeconds: number
   ) {
-    const minutes = Math.floor(
-      totalSeconds / 60
-    );
+    if (
+      totalSeconds < 60 &&
+      totalSeconds > 0
+    ) {
+      return "أقل من دقيقة";
+    }
+
+    const minutes =
+      Math.floor(
+        totalSeconds / 60
+      );
 
     if (minutes === 0) {
       return "0 دقيقة";
@@ -404,36 +694,43 @@ export default function Home() {
       return `${minutes} دقيقة`;
     }
 
-    const hours = Math.floor(
-      minutes / 60
-    );
+    const hours =
+      Math.floor(
+        minutes / 60
+      );
 
     const remainingMinutes =
       minutes % 60;
 
-    if (remainingMinutes === 0) {
+    if (
+      remainingMinutes === 0
+    ) {
       return `${hours} ساعة`;
     }
 
     return `${hours} س ${remainingMinutes} د`;
   }
 
+  // ==========================================
+  // Grades
+  // ==========================================
+
   function addGrade(
     event: FormEvent<HTMLFormElement>
   ) {
     event.preventDefault();
 
-    const score = Number(
-      gradeScore
-    );
+    const score =
+      Number(gradeScore);
 
-    const total = Number(
-      gradeTotal
-    );
+    const total =
+      Number(gradeTotal);
 
     if (
-      gradeScore.trim() === "" ||
-      gradeTotal.trim() === "" ||
+      gradeScore.trim() ===
+        "" ||
+      gradeTotal.trim() ===
+        "" ||
       Number.isNaN(score) ||
       Number.isNaN(total) ||
       score < 0 ||
@@ -445,28 +742,35 @@ export default function Home() {
 
     const grade: Grade = {
       id: crypto.randomUUID(),
-      subject: gradeSubject,
+      subject:
+        gradeSubject,
       type: gradeType,
       score,
       total,
-      date: new Date().toISOString(),
+      date:
+        new Date().toISOString(),
     };
 
-    setGrades((current) => [
-      grade,
-      ...current,
-    ]);
+    setGrades(
+      (current) => [
+        grade,
+        ...current,
+      ]
+    );
 
     setGradeScore("");
     setGradeTotal("");
   }
 
-  function deleteGrade(id: string) {
-    setGrades((current) =>
-      current.filter(
-        (grade) =>
-          grade.id !== id
-      )
+  function deleteGrade(
+    id: string
+  ) {
+    setGrades(
+      (current) =>
+        current.filter(
+          (grade) =>
+            grade.id !== id
+        )
     );
   }
 
@@ -474,9 +778,13 @@ export default function Home() {
     const trimmedName =
       studentName.trim();
 
-    if (!trimmedName) return;
+    if (!trimmedName) {
+      return;
+    }
 
-    setStudentName(trimmedName);
+    setStudentName(
+      trimmedName
+    );
 
     localStorage.setItem(
       "masar-student-name",
@@ -484,11 +792,17 @@ export default function Home() {
     );
   }
 
+  // ==========================================
+  // Today view
+  // ==========================================
+
   function renderToday() {
     return (
       <>
         <PageHeader
-          eyebrow={formattedDate}
+          eyebrow={
+            formattedDate
+          }
           title={`${greeting} يا ${studentName}`}
           subtitle="دي خطتك لليوم. ركّز على الخطوة اللي قدامك."
         />
@@ -514,8 +828,9 @@ export default function Home() {
               </p>
 
               <p className="mt-2 text-sm text-[#A1A1A6]">
-                هيظهر لما يبقى عندنا
-                بيانات كافية من استخدامك.
+                التقرير هيعتمد
+                على جلساتك ودرجاتك
+                الفعلية.
               </p>
             </div>
           </section>
@@ -528,14 +843,15 @@ export default function Home() {
             </p>
 
             <h2 className="mt-3 text-3xl font-semibold tracking-tight">
-              يوم المراجعة والتراكمات
+              يوم المراجعة
+              والتراكمات
             </h2>
 
             <p className="mt-4 max-w-xl leading-7 text-[#6E6E73]">
               مفيش مادة ثابتة
-              النهارده. لما نضيف نظام
-              التراكمات، المهام المتأخرة
-              هتظهر هنا تلقائيًا.
+              النهارده. التراكمات
+              اللي هنسجلها بعدين
+              هتظهر هنا.
             </p>
           </section>
         )}
@@ -545,29 +861,25 @@ export default function Home() {
             <div className="grid gap-5 xl:grid-cols-[1.55fr_0.75fr]">
               <section className="overflow-hidden rounded-[32px] bg-white">
                 <div className="border-b border-[#ECECEF] p-6 sm:p-8">
-                  <div className="flex items-start justify-between gap-5">
-                    <div>
-                      <div className="mb-5 flex items-center gap-2">
-                        <span className="h-2 w-2 rounded-full bg-[#0071E3]" />
+                  <div className="mb-5 flex items-center gap-2">
+                    <span className="h-2 w-2 rounded-full bg-[#0071E3]" />
 
-                        <span className="text-xs font-medium text-[#0071E3]">
-                          خطة اليوم
-                        </span>
-                      </div>
-
-                      <h2 className="text-3xl font-semibold tracking-tight text-black">
-                        {
-                          todayPlan.subject
-                        }
-                      </h2>
-
-                      <p className="mt-2 text-sm text-[#86868B]">
-                        {
-                          todayPlan.teacher
-                        }
-                      </p>
-                    </div>
+                    <span className="text-xs font-medium text-[#0071E3]">
+                      خطة اليوم
+                    </span>
                   </div>
+
+                  <h2 className="text-3xl font-semibold tracking-tight text-black">
+                    {
+                      todayPlan.subject
+                    }
+                  </h2>
+
+                  <p className="mt-2 text-sm text-[#86868B]">
+                    {
+                      todayPlan.teacher
+                    }
+                  </p>
                 </div>
 
                 <div className="p-6 sm:p-8">
@@ -643,9 +955,7 @@ export default function Home() {
                                   : ""
                               }`}
                             >
-                              {
-                                task
-                              }
+                              {task}
                             </span>
                           </button>
                         );
@@ -653,8 +963,7 @@ export default function Home() {
                     )}
                   </div>
 
-                  {todayPlan
-                    .optionalTasks
+                  {todayPlan.optionalTasks
                     ?.length ? (
                     <div className="mt-7">
                       <p className="mb-3 text-xs text-[#86868B]">
@@ -669,9 +978,7 @@ export default function Home() {
                             }
                             className="rounded-[18px] bg-[#F5F5F7] p-4 text-sm"
                           >
-                            {
-                              task
-                            }
+                            {task}
                           </div>
                         )
                       )}
@@ -685,10 +992,7 @@ export default function Home() {
                       </span>
 
                       <span>
-                        {
-                          progress
-                        }
-                        %
+                        {progress}%
                       </span>
                     </div>
 
@@ -718,9 +1022,9 @@ export default function Home() {
                 <InfoCard
                   label="وقت التركيز اليوم"
                   value={formatFocusTime(
-                    focusSeconds
+                    todayFocusSeconds
                   )}
-                  note="محسوب من المؤقت الفعلي فقط."
+                  note="من جلسات المذاكرة المسجلة."
                 />
 
                 <InfoCard
@@ -740,7 +1044,7 @@ export default function Home() {
                 <InfoCard
                   label="نقاط الضعف"
                   value="لا توجد بيانات"
-                  note="هنضيف تسجيل نقاط الضعف في المرحلة القادمة."
+                  note="هنضيف تسجيل نقاط الضعف بعدين."
                 />
               </div>
             </div>
@@ -752,9 +1056,9 @@ export default function Home() {
             <InfoCard
               label="وقت التركيز اليوم"
               value={formatFocusTime(
-                focusSeconds
+                todayFocusSeconds
               )}
-              note="محسوب من المؤقت الفعلي فقط."
+              note="من جلسات المذاكرة المسجلة."
             />
           </div>
         )}
@@ -762,9 +1066,19 @@ export default function Home() {
     );
   }
 
+  // ==========================================
+  // Weekly plan
+  // ==========================================
+
   function renderPlan() {
     const orderedDays = [
-      6, 0, 1, 2, 3, 4, 5,
+      6,
+      0,
+      1,
+      2,
+      3,
+      4,
+      5,
     ];
 
     return (
@@ -772,7 +1086,7 @@ export default function Home() {
         <PageHeader
           eyebrow="الأسبوع"
           title="خطتي"
-          subtitle="الجدول الثابت اللي اتفقنا عليه، من السبت للجمعة."
+          subtitle="الجدول الثابت من السبت للجمعة."
         />
 
         <div className="grid gap-4 lg:grid-cols-2">
@@ -840,9 +1154,7 @@ export default function Home() {
                             </span>
 
                             <span>
-                              {
-                                task
-                              }
+                              {task}
                             </span>
                           </div>
                         )
@@ -850,8 +1162,7 @@ export default function Home() {
                     </div>
                   )}
 
-                  {plan
-                    .optionalTasks
+                  {plan.optionalTasks
                     ?.length ? (
                     <div className="mt-5 rounded-[18px] bg-[#F5F5F7] p-4">
                       <p className="text-xs text-[#86868B]">
@@ -875,9 +1186,9 @@ export default function Home() {
     );
   }
 
-  function renderSubjects() {
-    return <SubjectsView />;
-  }
+  // ==========================================
+  // Main timer
+  // ==========================================
 
   function renderTimer() {
     return (
@@ -885,7 +1196,7 @@ export default function Home() {
         <PageHeader
           eyebrow="Focus"
           title="المؤقت"
-          subtitle="جلسة هادية، بهدف واضح، من غير أي تشتيت."
+          subtitle="كل جلسة بتتسجل للمادة اللي اخترتها."
         />
 
         <section className="mx-auto max-w-3xl rounded-[36px] bg-white p-6 sm:p-10">
@@ -893,9 +1204,7 @@ export default function Home() {
             {[25, 50, 55].map(
               (minutes) => (
                 <button
-                  key={
-                    minutes
-                  }
+                  key={minutes}
                   type="button"
                   disabled={
                     timerRunning
@@ -910,7 +1219,7 @@ export default function Home() {
                     minutes
                       ? "bg-black text-white"
                       : "bg-[#F5F5F7] text-[#6E6E73]"
-                  }`}
+                  } disabled:opacity-50`}
                 >
                   {minutes} دقيقة
                 </button>
@@ -931,8 +1240,7 @@ export default function Home() {
                   event
                 ) =>
                   setSelectedSubject(
-                    event
-                      .target
+                    event.target
                       .value
                   )
                 }
@@ -941,9 +1249,7 @@ export default function Home() {
                 }
               >
                 {subjects.map(
-                  (
-                    subject
-                  ) => (
+                  (subject) => (
                     <option
                       key={
                         subject.name
@@ -973,8 +1279,7 @@ export default function Home() {
                   event
                 ) =>
                   setSessionGoal(
-                    event
-                      .target
+                    event.target
                       .value
                   )
                 }
@@ -1010,28 +1315,35 @@ export default function Home() {
           </div>
 
           <div className="flex flex-col justify-center gap-3 sm:flex-row">
-            <button
-              type="button"
-              disabled={
-                secondsLeft ===
-                0
-              }
-              onClick={() =>
-                setTimerRunning(
-                  (current) =>
-                    !current
-                )
-              }
-              className="rounded-full bg-[#0071E3] px-8 py-4 text-sm font-medium text-white disabled:cursor-not-allowed disabled:opacity-40"
-            >
-              {timerRunning
-                ? "إيقاف مؤقت"
-                : secondsLeft ===
-                    timerMinutes *
-                      60
+            {!timerRunning ? (
+              <button
+                type="button"
+                disabled={
+                  secondsLeft ===
+                  0
+                }
+                onClick={
+                  startTimer
+                }
+                className="rounded-full bg-[#0071E3] px-8 py-4 text-sm font-medium text-white disabled:cursor-not-allowed disabled:opacity-40"
+              >
+                {secondsLeft ===
+                timerMinutes *
+                  60
                   ? "ابدأ"
                   : "استكمال"}
-            </button>
+              </button>
+            ) : (
+              <button
+                type="button"
+                onClick={
+                  pauseTimer
+                }
+                className="rounded-full bg-black px-8 py-4 text-sm font-medium text-white"
+              >
+                إيقاف مؤقت
+              </button>
+            )}
 
             <button
               type="button"
@@ -1044,6 +1356,13 @@ export default function Home() {
             </button>
           </div>
 
+          {secondsLeft ===
+            0 && (
+            <p className="mt-6 text-center text-sm font-medium text-[#34C759]">
+              انتهت الجلسة ✓
+            </p>
+          )}
+
           <div className="mt-10 border-t border-[#ECECEF] pt-6 text-center">
             <p className="text-xs text-[#86868B]">
               وقت التركيز المسجل
@@ -1052,7 +1371,7 @@ export default function Home() {
 
             <p className="mt-2 text-lg font-semibold">
               {formatFocusTime(
-                focusSeconds
+                todayFocusSeconds
               )}
             </p>
           </div>
@@ -1061,13 +1380,17 @@ export default function Home() {
     );
   }
 
+  // ==========================================
+  // Grades
+  // ==========================================
+
   function renderGrades() {
     return (
       <>
         <PageHeader
           eyebrow="Assessments"
           title="الدرجات"
-          subtitle="سجّل درجاتك الفعلية، ومسار هيعتمد عليها بعدين في التحليل."
+          subtitle="سجّل درجاتك الفعلية عشان نستخدمها في التحليل."
         />
 
         <div className="grid gap-5 xl:grid-cols-[0.8fr_1.2fr]">
@@ -1091,8 +1414,7 @@ export default function Home() {
                     event
                   ) =>
                     setGradeSubject(
-                      event
-                        .target
+                      event.target
                         .value
                     )
                   }
@@ -1101,9 +1423,7 @@ export default function Home() {
                   }
                 >
                   {subjects.map(
-                    (
-                      subject
-                    ) => (
+                    (subject) => (
                       <option
                         key={
                           subject.name
@@ -1130,8 +1450,7 @@ export default function Home() {
                     event
                   ) =>
                     setGradeType(
-                      event
-                        .target
+                      event.target
                         .value as Grade["type"]
                     )
                   }
@@ -1165,8 +1484,7 @@ export default function Home() {
                       event
                     ) =>
                       setGradeScore(
-                        event
-                          .target
+                        event.target
                           .value
                       )
                     }
@@ -1187,8 +1505,7 @@ export default function Home() {
                       event
                     ) =>
                       setGradeTotal(
-                        event
-                          .target
+                        event.target
                           .value
                       )
                     }
@@ -1305,73 +1622,9 @@ export default function Home() {
     );
   }
 
-  function renderAnalytics() {
-    return (
-      <>
-        <PageHeader
-          eyebrow="Analytics"
-          title="التحليلات"
-          subtitle="كل رقم هنا ناتج عن استخدامك الفعلي للموقع."
-        />
-
-        <div className="grid gap-4 md:grid-cols-3">
-          <InfoCard
-            label="وقت التركيز اليوم"
-            value={formatFocusTime(
-              focusSeconds
-            )}
-            note="من جلسات المؤقت."
-          />
-
-          <InfoCard
-            label="إنجاز مهام اليوم"
-            value={
-              todayPlan.tasks
-                .length
-                ? `${progress}%`
-                : "لا توجد مهام"
-            }
-            note={
-              todayPlan.tasks
-                .length
-                ? `${completedTasks.length} من ${todayPlan.tasks.length}`
-                : "اليوم بدون خطة ثابتة."
-            }
-          />
-
-          <InfoCard
-            label="متوسط الدرجات"
-            value={
-              gradeAverage ===
-              null
-                ? "لا توجد بيانات"
-                : `${gradeAverage}%`
-            }
-            note={
-              gradeAverage ===
-              null
-                ? "أضف تقييمات أولًا."
-                : `مبني على ${grades.length} تقييم`
-            }
-          />
-        </div>
-
-        <section className="mt-5 rounded-[32px] bg-white p-7">
-          <h2 className="text-xl font-semibold">
-            التحليل الأسبوعي
-          </h2>
-
-          <p className="mt-3 max-w-2xl text-sm leading-7 text-[#6E6E73]">
-            هنفعّل التقرير
-            الأسبوعي لما يبقى عندنا
-            بيانات كفاية من جلسات
-            المذاكرة والدرجات ونقاط
-            الضعف.
-          </p>
-        </section>
-      </>
-    );
-  }
+  // ==========================================
+  // Settings
+  // ==========================================
 
   function renderSettings() {
     return (
@@ -1416,6 +1669,9 @@ export default function Home() {
                       minutes
                     }
                     type="button"
+                    disabled={
+                      timerRunning
+                    }
                     onClick={() =>
                       changeTimerDuration(
                         minutes
@@ -1426,7 +1682,7 @@ export default function Home() {
                       minutes
                         ? "bg-black text-white"
                         : "bg-[#F5F5F7]"
-                    }`}
+                    } disabled:opacity-50`}
                   >
                     {minutes} دقيقة
                   </button>
@@ -1459,13 +1715,19 @@ export default function Home() {
     );
   }
 
+  // ==========================================
+  // Content router
+  // ==========================================
+
   function renderContent() {
     switch (activeView) {
       case "plan":
         return renderPlan();
 
       case "subjects":
-        return renderSubjects();
+        return (
+          <SubjectsView />
+        );
 
       case "timer":
         return renderTimer();
@@ -1474,7 +1736,9 @@ export default function Home() {
         return renderGrades();
 
       case "analytics":
-        return renderAnalytics();
+        return (
+          <AnalyticsView />
+        );
 
       case "settings":
         return renderSettings();
@@ -1504,6 +1768,7 @@ export default function Home() {
       className="min-h-screen bg-[#F5F5F7] text-[#1D1D1F]"
     >
       <div className="mx-auto flex min-h-screen max-w-[1600px]">
+        {/* Desktop Sidebar */}
         <aside className="sticky top-0 hidden h-screen w-[230px] shrink-0 px-5 py-6 lg:block">
           <div className="flex h-full flex-col rounded-[30px] bg-white p-4">
             <button
@@ -1599,6 +1864,7 @@ export default function Home() {
           </div>
         </aside>
 
+        {/* Main */}
         <main className="min-w-0 flex-1 px-4 pb-28 pt-6 sm:px-6 lg:px-10 lg:pb-10 lg:pt-8">
           <div className="mb-8 flex items-center justify-between lg:hidden">
             <button
@@ -1637,6 +1903,7 @@ export default function Home() {
         </main>
       </div>
 
+      {/* Mobile Navigation */}
       <nav className="fixed bottom-3 left-3 right-3 z-40 rounded-[24px] border border-black/5 bg-white/95 p-2 shadow-[0_8px_30px_rgba(0,0,0,0.08)] backdrop-blur-xl lg:hidden">
         <div className="grid grid-cols-5">
           {navigation

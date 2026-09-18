@@ -1,9 +1,24 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import {
+  useEffect,
+  useMemo,
+  useState,
+} from "react";
 
-import { curriculum } from "@/data/curriculumData";
-import { getSubjectWorkflow } from "@/data/workflowData";
+import LessonStudyTimer from "@/components/LessonStudyTimer";
+
+import {
+  curriculum,
+} from "@/data/curriculumData";
+
+import {
+  getSubjectWorkflow,
+} from "@/data/workflowData";
+
+import type {
+  StudyContext,
+} from "@/data/sessionData";
 
 const WORKFLOW_STORAGE_KEY =
   "masar-lesson-workflow-progress";
@@ -11,29 +26,55 @@ const WORKFLOW_STORAGE_KEY =
 const OLD_COMPLETION_STORAGE_KEY =
   "masar-curriculum-completion";
 
-type LessonProgress = Record<string, string[]>;
+type LessonProgress =
+  Record<string, string[]>;
 
 export default function SubjectsView() {
-  const [selectedSubjectId, setSelectedSubjectId] =
-    useState<string | null>(null);
+  const [
+    selectedSubjectId,
+    setSelectedSubjectId,
+  ] = useState<string | null>(
+    null
+  );
 
-  const [selectedLessonId, setSelectedLessonId] =
-    useState<string | null>(null);
+  const [
+    selectedLessonId,
+    setSelectedLessonId,
+  ] = useState<string | null>(
+    null
+  );
 
-  const [openUnitId, setOpenUnitId] =
-    useState<string | null>(null);
+  const [
+    openUnitId,
+    setOpenUnitId,
+  ] = useState<string | null>(
+    null
+  );
 
-  const [lessonProgress, setLessonProgress] =
-    useState<LessonProgress>({});
+  const [
+    lessonProgress,
+    setLessonProgress,
+  ] =
+    useState<LessonProgress>(
+      {}
+    );
 
-  const [loaded, setLoaded] =
-    useState(false);
+  const [
+    loaded,
+    setLoaded,
+  ] = useState(false);
 
-  // --------------------------------------------------
-  // Load saved progress
-  // --------------------------------------------------
+  const [
+    studyContext,
+    setStudyContext,
+  ] =
+    useState<StudyContext | null>(
+      null
+    );
+
   useEffect(() => {
-    let nextProgress: LessonProgress = {};
+    let nextProgress:
+      LessonProgress = {};
 
     const savedWorkflow =
       localStorage.getItem(
@@ -43,12 +84,17 @@ export default function SubjectsView() {
     if (savedWorkflow) {
       try {
         const parsed =
-          JSON.parse(savedWorkflow);
+          JSON.parse(
+            savedWorkflow
+          );
 
         if (
           parsed &&
-          typeof parsed === "object" &&
-          !Array.isArray(parsed)
+          typeof parsed ===
+            "object" &&
+          !Array.isArray(
+            parsed
+          )
         ) {
           nextProgress =
             parsed as LessonProgress;
@@ -58,96 +104,135 @@ export default function SubjectsView() {
       }
     }
 
-    // Preserve progress from the old version
     const oldCompletion =
       localStorage.getItem(
         OLD_COMPLETION_STORAGE_KEY
       );
 
-    let oldCompletedLessons: string[] = [];
+    let oldCompletedLessons:
+      string[] = [];
 
     if (oldCompletion) {
       try {
         const parsed =
-          JSON.parse(oldCompletion);
+          JSON.parse(
+            oldCompletion
+          );
 
-        if (Array.isArray(parsed)) {
-          oldCompletedLessons = parsed;
+        if (
+          Array.isArray(
+            parsed
+          )
+        ) {
+          oldCompletedLessons =
+            parsed;
         }
       } catch {
-        oldCompletedLessons = [];
+        oldCompletedLessons =
+          [];
       }
     }
 
-    // Convert any previously completed lesson
-    // into completed workflow steps.
-    curriculum.forEach((subject) => {
-      const workflow =
-        getSubjectWorkflow(subject.id);
+    curriculum.forEach(
+      (subject) => {
+        const workflow =
+          getSubjectWorkflow(
+            subject.id
+          );
 
-      const workflowIds =
-        workflow.map((step) => step.id);
+        const workflowIds =
+          workflow.map(
+            (step) =>
+              step.id
+          );
 
-      subject.units.forEach((unit) => {
-        unit.lessons.forEach((lesson) => {
-          if (
-            oldCompletedLessons.includes(
-              lesson.id
-            ) &&
-            !nextProgress[lesson.id]
-          ) {
-            nextProgress[lesson.id] =
-              workflowIds;
+        subject.units.forEach(
+          (unit) => {
+            unit.lessons.forEach(
+              (lesson) => {
+                if (
+                  oldCompletedLessons.includes(
+                    lesson.id
+                  ) &&
+                  !nextProgress[
+                    lesson.id
+                  ]
+                ) {
+                  nextProgress[
+                    lesson.id
+                  ] =
+                    workflowIds;
+                }
+              }
+            );
           }
-        });
-      });
-    });
+        );
+      }
+    );
 
-    setLessonProgress(nextProgress);
+    setLessonProgress(
+      nextProgress
+    );
+
     setLoaded(true);
   }, []);
 
-  // --------------------------------------------------
-  // Save workflow progress
-  // --------------------------------------------------
   useEffect(() => {
     if (!loaded) return;
 
     localStorage.setItem(
       WORKFLOW_STORAGE_KEY,
-      JSON.stringify(lessonProgress)
+      JSON.stringify(
+        lessonProgress
+      )
     );
 
-    // Keep old completion storage updated too
-    const completedLessonIds: string[] =
-      [];
+    const completedLessonIds:
+      string[] = [];
 
-    curriculum.forEach((subject) => {
-      const workflow =
-        getSubjectWorkflow(subject.id);
+    curriculum.forEach(
+      (subject) => {
+        const workflow =
+          getSubjectWorkflow(
+            subject.id
+          );
 
-      const workflowIds =
-        workflow.map((step) => step.id);
+        const workflowIds =
+          workflow.map(
+            (step) =>
+              step.id
+          );
 
-      subject.units.forEach((unit) => {
-        unit.lessons.forEach((lesson) => {
-          const completedSteps =
-            lessonProgress[lesson.id] ?? [];
+        subject.units.forEach(
+          (unit) => {
+            unit.lessons.forEach(
+              (lesson) => {
+                const completedSteps =
+                  lessonProgress[
+                    lesson.id
+                  ] ?? [];
 
-          const isComplete =
-            workflowIds.length > 0 &&
-            workflowIds.every((stepId) =>
-              completedSteps.includes(stepId)
-            );
+                const isComplete =
+                  workflowIds.length >
+                    0 &&
+                  workflowIds.every(
+                    (stepId) =>
+                      completedSteps.includes(
+                        stepId
+                      )
+                  );
 
-          if (isComplete) {
-            completedLessonIds.push(
-              lesson.id
+                if (isComplete) {
+                  completedLessonIds.push(
+                    lesson.id
+                  );
+                }
+              }
             );
           }
-        });
-      });
-    });
+        );
+      }
+    );
 
     localStorage.setItem(
       OLD_COMPLETION_STORAGE_KEY,
@@ -155,14 +240,16 @@ export default function SubjectsView() {
         completedLessonIds
       )
     );
-  }, [lessonProgress, loaded]);
+  }, [
+    lessonProgress,
+    loaded,
+  ]);
 
-  // --------------------------------------------------
-  // Selected subject
-  // --------------------------------------------------
   const selectedSubject =
     useMemo(() => {
-      if (!selectedSubjectId) {
+      if (
+        !selectedSubjectId
+      ) {
         return null;
       }
 
@@ -171,11 +258,10 @@ export default function SubjectsView() {
           subject.id ===
           selectedSubjectId
       );
-    }, [selectedSubjectId]);
+    }, [
+      selectedSubjectId,
+    ]);
 
-  // --------------------------------------------------
-  // Selected lesson
-  // --------------------------------------------------
   const selectedLessonData =
     useMemo(() => {
       if (
@@ -210,22 +296,26 @@ export default function SubjectsView() {
       selectedLessonId,
     ]);
 
-  // --------------------------------------------------
-  // Helpers
-  // --------------------------------------------------
   function getLessonStats(
     subjectId: string,
     lessonId: string
   ) {
     const workflow =
-      getSubjectWorkflow(subjectId);
+      getSubjectWorkflow(
+        subjectId
+      );
 
     const completed =
-      lessonProgress[lessonId] ?? [];
+      lessonProgress[
+        lessonId
+      ] ?? [];
 
     const completedCount =
-      workflow.filter((step) =>
-        completed.includes(step.id)
+      workflow.filter(
+        (step) =>
+          completed.includes(
+            step.id
+          )
       ).length;
 
     const total =
@@ -235,7 +325,8 @@ export default function SubjectsView() {
       total === 0
         ? 0
         : Math.round(
-            (completedCount / total) *
+            (completedCount /
+              total) *
               100
           );
 
@@ -245,7 +336,8 @@ export default function SubjectsView() {
       progress,
       complete:
         total > 0 &&
-        completedCount === total,
+        completedCount ===
+          total,
     };
   }
 
@@ -255,7 +347,8 @@ export default function SubjectsView() {
     const subject =
       curriculum.find(
         (item) =>
-          item.id === subjectId
+          item.id ===
+          subjectId
       );
 
     if (!subject) {
@@ -268,15 +361,17 @@ export default function SubjectsView() {
 
     const lessons =
       subject.units.flatMap(
-        (unit) => unit.lessons
+        (unit) =>
+          unit.lessons
       );
 
     const completed =
-      lessons.filter((lesson) =>
-        getLessonStats(
-          subject.id,
-          lesson.id
-        ).complete
+      lessons.filter(
+        (lesson) =>
+          getLessonStats(
+            subject.id,
+            lesson.id
+          ).complete
       ).length;
 
     const total =
@@ -286,7 +381,8 @@ export default function SubjectsView() {
       total === 0
         ? 0
         : Math.round(
-            (completed / total) *
+            (completed /
+              total) *
               100
           );
 
@@ -302,11 +398,12 @@ export default function SubjectsView() {
     lessonIds: string[]
   ) {
     const completed =
-      lessonIds.filter((lessonId) =>
-        getLessonStats(
-          subjectId,
-          lessonId
-        ).complete
+      lessonIds.filter(
+        (lessonId) =>
+          getLessonStats(
+            subjectId,
+            lessonId
+          ).complete
       ).length;
 
     const total =
@@ -316,7 +413,8 @@ export default function SubjectsView() {
       total === 0
         ? 0
         : Math.round(
-            (completed / total) *
+            (completed /
+              total) *
               100
           );
 
@@ -334,13 +432,18 @@ export default function SubjectsView() {
     setLessonProgress(
       (current) => {
         const currentSteps =
-          current[lessonId] ?? [];
+          current[
+            lessonId
+          ] ?? [];
 
         const nextSteps =
-          currentSteps.includes(stepId)
+          currentSteps.includes(
+            stepId
+          )
             ? currentSteps.filter(
                 (id) =>
-                  id !== stepId
+                  id !==
+                  stepId
               )
             : [
                 ...currentSteps,
@@ -362,32 +465,57 @@ export default function SubjectsView() {
     const subject =
       curriculum.find(
         (item) =>
-          item.id === subjectId
+          item.id ===
+          subjectId
       );
 
     setSelectedSubjectId(
       subjectId
     );
 
-    setSelectedLessonId(null);
+    setSelectedLessonId(
+      null
+    );
 
     setOpenUnitId(
-      subject?.units[0]?.id ??
-        null
+      subject?.units[0]
+        ?.id ?? null
     );
   }
 
-  function openLesson(
-    lessonId: string
-  ) {
-    setSelectedLessonId(
-      lessonId
-    );
+  function startLessonTimer() {
+    if (
+      !selectedSubject ||
+      !selectedLessonData
+    ) {
+      return;
+    }
+
+    setStudyContext({
+      subjectId:
+        selectedSubject.id,
+
+      subjectName:
+        selectedSubject.name,
+
+      lessonId:
+        selectedLessonData
+          .lesson.id,
+
+      lessonTitle:
+        selectedLessonData
+          .lesson.title,
+
+      unitTitle:
+        selectedLessonData
+          .unit.title,
+
+      goal:
+        selectedLessonData
+          .lesson.title,
+    });
   }
 
-  // ==================================================
-  // LESSON VIEW
-  // ==================================================
   if (
     selectedSubject &&
     selectedLessonData
@@ -400,12 +528,14 @@ export default function SubjectsView() {
     const stats =
       getLessonStats(
         selectedSubject.id,
-        selectedLessonData.lesson.id
+        selectedLessonData
+          .lesson.id
       );
 
     const completedSteps =
       lessonProgress[
-        selectedLessonData.lesson.id
+        selectedLessonData
+          .lesson.id
       ] ?? [];
 
     return (
@@ -439,7 +569,9 @@ export default function SubjectsView() {
 
           <div className="mt-3 flex flex-wrap gap-x-3 gap-y-1 text-sm text-[#86868B]">
             <span>
-              {selectedSubject.name}
+              {
+                selectedSubject.name
+              }
             </span>
 
             <span>·</span>
@@ -449,6 +581,18 @@ export default function SubjectsView() {
                 selectedSubject.teacher
               }
             </span>
+          </div>
+
+          <div className="mt-7 flex flex-wrap gap-3">
+            <button
+              type="button"
+              onClick={
+                startLessonTimer
+              }
+              className="rounded-full bg-[#0071E3] px-6 py-3.5 text-sm font-medium text-white transition hover:bg-[#0077ED]"
+            >
+              ابدأ مذاكرة الدرس
+            </button>
           </div>
 
           <div className="mt-7 max-w-xl">
@@ -491,9 +635,10 @@ export default function SubjectsView() {
             </h2>
 
             <p className="mt-2 text-sm leading-6 text-[#A1A1A6]">
-              الدرس بيتحسب مكتمل
-              لأنك أنهيت كل خطوات
-              المذاكرة الخاصة بالمادة.
+              الدرس بيتحسب
+              مكتمل بعد إنهاء
+              خطوات المذاكرة
+              الخاصة بالمادة.
             </p>
           </section>
         )}
@@ -509,8 +654,9 @@ export default function SubjectsView() {
             </h2>
 
             <p className="mt-2 text-sm leading-6 text-[#86868B]">
-              علّم على كل خطوة بعد
-              ما تخلصها فعلًا.
+              علّم على كل خطوة
+              بعد ما تخلصها
+              فعلًا.
             </p>
           </div>
 
@@ -548,7 +694,8 @@ export default function SubjectsView() {
                     >
                       {completed
                         ? "✓"
-                        : index + 1}
+                        : index +
+                          1}
                     </span>
 
                     <div className="min-w-0 flex-1">
@@ -584,13 +731,23 @@ export default function SubjectsView() {
             )}
           </div>
         </section>
+
+        {studyContext && (
+          <LessonStudyTimer
+            context={
+              studyContext
+            }
+            onClose={() =>
+              setStudyContext(
+                null
+              )
+            }
+          />
+        )}
       </>
     );
   }
 
-  // ==================================================
-  // SUBJECT DETAILS
-  // ==================================================
   if (selectedSubject) {
     const stats =
       getSubjectStats(
@@ -611,7 +768,9 @@ export default function SubjectsView() {
                 null
               );
 
-              setOpenUnitId(null);
+              setOpenUnitId(
+                null
+              );
             }}
             className="mb-6 rounded-full bg-white px-4 py-2 text-sm text-[#6E6E73] transition hover:bg-[#ECECEF]"
           >
@@ -699,7 +858,7 @@ export default function SubjectsView() {
                       <div className="mt-3 flex items-center gap-3">
                         <div className="h-[5px] max-w-[160px] flex-1 overflow-hidden rounded-full bg-[#E8E8ED]">
                           <div
-                            className="h-full rounded-full bg-[#0071E3] transition-all duration-500"
+                            className="h-full rounded-full bg-[#0071E3]"
                             style={{
                               width: `${unitStats.progress}%`,
                             }}
@@ -750,7 +909,7 @@ export default function SubjectsView() {
                                 }
                                 type="button"
                                 onClick={() =>
-                                  openLesson(
+                                  setSelectedLessonId(
                                     lesson.id
                                   )
                                 }
@@ -770,7 +929,7 @@ export default function SubjectsView() {
                                 </span>
 
                                 <div className="min-w-0 flex-1">
-                                  <p className="text-sm font-medium text-[#1D1D1F]">
+                                  <p className="text-sm font-medium">
                                     {
                                       lesson.title
                                     }
@@ -795,7 +954,7 @@ export default function SubjectsView() {
                                   </div>
                                 </div>
 
-                                <span className="shrink-0 text-sm text-[#AEAEB2] transition group-hover:text-[#0071E3]">
+                                <span className="text-sm text-[#AEAEB2] group-hover:text-[#0071E3]">
                                   ←
                                 </span>
                               </button>
@@ -814,9 +973,6 @@ export default function SubjectsView() {
     );
   }
 
-  // ==================================================
-  // SUBJECT LIST
-  // ==================================================
   return (
     <>
       <header className="mb-9">
@@ -829,9 +985,9 @@ export default function SubjectsView() {
         </h1>
 
         <p className="mt-3 max-w-2xl text-[15px] leading-7 text-[#6E6E73]">
-          افتح أي مادة وتابع تقدمك
-          الحقيقي في الوحدات
-          والدروس.
+          افتح أي مادة وتابع
+          تقدمك الحقيقي في
+          الوحدات والدروس.
         </p>
       </header>
 
@@ -855,7 +1011,7 @@ export default function SubjectsView() {
                 className="group rounded-[28px] bg-white p-6 text-right transition duration-200 hover:-translate-y-1"
               >
                 <div className="flex items-start justify-between">
-                  <div className="flex h-12 w-12 items-center justify-center rounded-[16px] bg-[#F5F5F7] text-lg font-semibold text-black">
+                  <div className="flex h-12 w-12 items-center justify-center rounded-[16px] bg-[#F5F5F7] text-lg font-semibold">
                     {subject.name.charAt(
                       0
                     )}
@@ -896,7 +1052,7 @@ export default function SubjectsView() {
                       التقدم
                     </span>
 
-                    <span className="font-medium text-[#1D1D1F]">
+                    <span className="font-medium">
                       {
                         stats.progress
                       }
@@ -906,7 +1062,7 @@ export default function SubjectsView() {
 
                   <div className="h-[6px] overflow-hidden rounded-full bg-[#E8E8ED]">
                     <div
-                      className="h-full rounded-full bg-[#0071E3] transition-all duration-500"
+                      className="h-full rounded-full bg-[#0071E3]"
                       style={{
                         width: `${stats.progress}%`,
                       }}
