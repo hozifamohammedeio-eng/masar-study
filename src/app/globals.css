@@ -18,6 +18,7 @@ body {
   margin: 0;
   background: var(--background);
   color: var(--foreground);
+  overflow-x: hidden;
 }
 
 /* Smooth entrance used inside Masar */
@@ -35,6 +36,21 @@ body {
 
 .masar-enter {
   animation: masar-enter 220ms ease-out both;
+}
+
+.task-input {
+  margin-top: 0.5rem;
+  width: 100%;
+  border: 1px solid #e5e5ea;
+  border-radius: 16px;
+  background: white;
+  padding: 0.75rem 1rem;
+  font-size: 0.875rem;
+  outline: none;
+}
+
+.task-input:focus {
+  border-color: #0071e3;
 }
 
 /* Smooth expandable sections */

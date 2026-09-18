@@ -13,6 +13,7 @@ import {
   loadStudySessions,
   type StudySession,
 } from "@/data/sessionData";
+import { loadTasks, type StudyTask } from "@/data/taskData";
 
 function formatDuration(
   seconds: number
@@ -99,6 +100,8 @@ export default function AnalyticsView() {
       []
     );
 
+  const [tasks, setTasks] = useState<StudyTask[]>([]);
+
   const [loaded, setLoaded] =
     useState(false);
 
@@ -107,8 +110,20 @@ export default function AnalyticsView() {
       loadStudySessions()
     );
 
+    setTasks(loadTasks());
+
     setLoaded(true);
   }, []);
+
+  const completedTaskCount = tasks.filter((task) => task.status === "completed").length;
+  const taskCompletion = tasks.length ? Math.round((completedTaskCount / tasks.length) * 100) : 0;
+  const studyDates = new Set(sessions.map((session) => session.dateKey));
+  let streak = 0;
+  const streakDate = new Date();
+  while (studyDates.has(getLocalDateKey(streakDate))) {
+    streak += 1;
+    streakDate.setDate(streakDate.getDate() - 1);
+  }
 
   const todayKey =
     getLocalDateKey();
@@ -368,6 +383,18 @@ export default function AnalyticsView() {
                 )
               : "ابدأ أول جلسة"
           }
+        />
+
+        <StatCard
+          label="نسبة إنجاز المهام"
+          value={`${taskCompletion}%`}
+          note={`${completedTaskCount} من ${tasks.length} مكتملة`}
+        />
+
+        <StatCard
+          label="سلسلة الأيام"
+          value={`${streak} يوم`}
+          note={streak ? "استمر على نفس الإيقاع" : "ابدأ جلسة اليوم"}
         />
       </div>
 

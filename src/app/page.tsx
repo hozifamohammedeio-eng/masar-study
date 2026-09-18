@@ -9,9 +9,14 @@ import {
   useState,
 } from "react";
 
+import CatchUpReview from "@/components/CatchUpReview";
+import CatchUpManager from "@/components/CatchUpManager";
+import BackupControls from "@/components/BackupControls";
 import ProgressView from "@/components/ProgressView";
 import SmoothView from "@/components/SmoothView";
 import SubjectsView from "@/components/SubjectsView";
+import TaskManager from "@/components/TaskManager";
+import WeeklyPlanEditor from "@/components/WeeklyPlanEditor";
 
 import { curriculum } from "@/data/curriculumData";
 
@@ -31,9 +36,17 @@ import {
   loadWeakPoints,
 } from "@/data/weakPointData";
 
+import {
+  isTaskOverdue,
+  loadTasks,
+  saveTasks,
+  type StudyTask,
+} from "@/data/taskData";
+
 type View =
   | "today"
   | "subjects"
+  | "tasks"
   | "timer"
   | "progress"
   | "plan"
@@ -53,6 +66,11 @@ const mainNavigation: {
     id: "subjects",
     label: "المواد",
     symbol: "◫",
+  },
+  {
+    id: "tasks",
+    label: "المهام",
+    symbol: "✓",
   },
   {
     id: "timer",
@@ -88,6 +106,16 @@ export default function Home() {
     completedTasks,
     setCompletedTasks,
   ] = useState<number[]>([]);
+
+  const [
+    tasks,
+    setTasks,
+  ] = useState<StudyTask[]>([]);
+
+  const [
+    taskDataLoaded,
+    setTaskDataLoaded,
+  ] = useState(false);
 
   const [
     tasksLoaded,
@@ -142,9 +170,24 @@ export default function Home() {
     setStudentName,
   ] = useState("حذيفة");
 
+  // ==========================================
+  // Current date
+  // ==========================================
+
   useEffect(() => {
     setNow(new Date());
   }, []);
+
+  useEffect(() => {
+    setTasks(loadTasks());
+    setTaskDataLoaded(true);
+  }, []);
+
+  useEffect(() => {
+    if (taskDataLoaded) {
+      saveTasks(tasks);
+    }
+  }, [taskDataLoaded, tasks]);
 
   const todayPlan = now
     ? weeklyPlan[now.getDay()]
@@ -182,6 +225,10 @@ export default function Home() {
         : "مساء الخير";
     }, [now]);
 
+  // ==========================================
+  // Settings
+  // ==========================================
+
   useEffect(() => {
     const savedName =
       localStorage.getItem(
@@ -204,7 +251,8 @@ export default function Home() {
       if (
         parsed === 25 ||
         parsed === 50 ||
-        parsed === 55
+        parsed === 5 ||
+        parsed === 10
       ) {
         setTimerMinutes(parsed);
 
@@ -214,6 +262,10 @@ export default function Home() {
       }
     }
   }, []);
+
+  // ==========================================
+  // Today's tasks
+  // ==========================================
 
   useEffect(() => {
     if (!todayKey) return;
@@ -267,6 +319,10 @@ export default function Home() {
     todayKey,
   ]);
 
+  // ==========================================
+  // Real data
+  // ==========================================
+
   const refreshRealData =
     useCallback(() => {
       setStudySessions(
@@ -313,6 +369,10 @@ export default function Home() {
       studySessions,
       todayKey,
     ]);
+
+  // ==========================================
+  // Main timer save
+  // ==========================================
 
   const saveMainTimerSegment =
     useCallback(
@@ -388,6 +448,10 @@ export default function Home() {
       ]
     );
 
+  // ==========================================
+  // Countdown
+  // ==========================================
+
   useEffect(() => {
     if (!timerRunning) {
       return;
@@ -426,6 +490,10 @@ export default function Home() {
     saveMainTimerSegment,
   ]);
 
+  // ==========================================
+  // Today progress
+  // ==========================================
+
   const progress =
     useMemo(() => {
       if (
@@ -460,6 +528,10 @@ export default function Home() {
             ]
     );
   }
+
+  // ==========================================
+  // Timer
+  // ==========================================
 
   function changeTimerDuration(
     minutes: number
@@ -547,6 +619,10 @@ export default function Home() {
       "timer"
     );
   }
+
+  // ==========================================
+  // Helpers
+  // ==========================================
 
   function formatTimer(
     totalSeconds: number
@@ -638,7 +714,21 @@ export default function Home() {
     setMobileMenuOpen(false);
   }
 
+  // ==========================================
+  // Today
+  // ==========================================
+
   function renderToday() {
+    const dueTodayTasks = tasks.filter(
+      (task) =>
+        task.dueDate === todayKey &&
+        task.status !== "completed"
+    );
+
+    const overdueTasks = tasks.filter(
+      (task) => isTaskOverdue(task, todayKey)
+    );
+
     return (
       <>
         <PageHeader
@@ -648,6 +738,24 @@ export default function Home() {
           title={`${greeting} يا ${studentName}`}
           subtitle="دي أهم حاجة محتاج تعملها النهارده."
         />
+
+        <section className="mb-5 grid gap-3 sm:grid-cols-2 xl:grid-cols-5">
+          <InfoCard label="تاريخ اليوم" value={formattedDate} />
+          <InfoCard label="مهام اليوم" value={`${dueTodayTasks.length} مهمة`} />
+          <InfoCard label="المحاضرات المطلوبة" value={todayPlan.subject ?? (todayPlan.rest ? "إجازة" : "مراجعة")} />
+          <InfoCard label="المهام المتأخرة" value={`${overdueTasks.length}`} />
+          <InfoCard label="ساعات المذاكرة اليوم" value={formatFocusTime(todayFocusSeconds)} />
+        </section>
+
+        <section className="mb-5 rounded-[28px] bg-[#1D1D1F] p-6 text-white sm:p-7">
+          <div className="flex flex-col justify-between gap-4 sm:flex-row sm:items-center">
+            <div>
+              <p className="text-xs text-[#A1A1A6]">جلسة اليوم</p>
+              <h2 className="mt-2 text-xl font-semibold">ابدأ جلسة مذاكرة مركزة</h2>
+            </div>
+            <button type="button" onClick={startTodaySession} className="rounded-full bg-white px-5 py-3 text-sm font-medium text-black">بدء جلسة مذاكرة</button>
+          </div>
+        </section>
 
         {todayPlan.rest && (
           <section className="rounded-[32px] bg-[#1D1D1F] p-7 text-white sm:p-10">
@@ -679,39 +787,7 @@ export default function Home() {
         )}
 
         {todayPlan.catchUp && (
-          <section className="rounded-[32px] bg-white p-7 sm:p-9">
-            <p className="text-xs font-medium text-[#0071E3]">
-              الخميس
-            </p>
-
-            <h2 className="mt-3 text-2xl font-semibold">
-              مراجعة وتراكمات
-            </h2>
-
-            <p className="mt-3 text-sm leading-7 text-[#6E6E73]">
-              يوم مرن للمراجعة
-              والحاجات اللي محتاجة
-              تثبيت.
-            </p>
-
-            <div className="mt-6 rounded-[22px] bg-[#F5F5F7] p-5">
-              <p className="text-xs text-[#86868B]">
-                نقاط محتاجة مراجعة
-              </p>
-
-              <p className="mt-2 text-2xl font-semibold">
-                {
-                  openWeakPointsCount
-                }
-              </p>
-
-              <p className="mt-2 text-xs text-[#86868B]">
-                هنرتبهم لك حسب
-                الأولوية في الخطوة
-                القادمة.
-              </p>
-            </div>
-          </section>
+          <CatchUpReview />
         )}
 
         {!todayPlan.rest &&
@@ -874,9 +950,26 @@ export default function Home() {
               </div>
             </div>
           )}
+
+        <div className="mt-5">
+          <TaskManager tasks={tasks} todayKey={todayKey} onChange={setTasks} />
+        </div>
       </>
     );
   }
+
+  function renderTasks() {
+    return (
+      <>
+        <PageHeader eyebrow="تنظيم اليوم" title="المهام" subtitle="أضف مهامك، وحدد موعدها، وتابع حالتها حتى تكتمل." />
+        <TaskManager tasks={tasks} todayKey={todayKey} onChange={setTasks} />
+      </>
+    );
+  }
+
+  // ==========================================
+  // Weekly plan
+  // ==========================================
 
   function renderPlan() {
     const orderedDays = [
@@ -930,6 +1023,11 @@ export default function Home() {
                     </>
                   )}
 
+
+                <div className="mt-5 space-y-5">
+                  <WeeklyPlanEditor />
+                  <CatchUpManager />
+                </div>
                   {plan.catchUp && (
                     <h2 className="mt-4 text-xl font-semibold">
                       مراجعة
@@ -969,6 +1067,10 @@ export default function Home() {
     );
   }
 
+  // ==========================================
+  // Timer
+  // ==========================================
+
   function renderTimer() {
     return (
       <>
@@ -980,7 +1082,7 @@ export default function Home() {
 
         <section className="mx-auto max-w-3xl rounded-[34px] bg-white p-6 sm:p-10">
           <div className="flex justify-center gap-2">
-            {[25, 50, 55].map(
+            {[25, 50, 5, 10].map(
               (minutes) => (
                 <button
                   key={minutes}
@@ -1151,6 +1253,10 @@ export default function Home() {
     );
   }
 
+  // ==========================================
+  // Settings
+  // ==========================================
+
   function renderSettings() {
     return (
       <>
@@ -1185,7 +1291,7 @@ export default function Home() {
             </p>
 
             <div className="mt-3 flex gap-2">
-              {[25, 50, 55].map(
+              {[25, 50, 5, 10].map(
                 (minutes) => (
                   <button
                     key={
@@ -1223,10 +1329,16 @@ export default function Home() {
           >
             حفظ
           </button>
+
+          <BackupControls />
         </section>
       </>
     );
   }
+
+  // ==========================================
+  // Router
+  // ==========================================
 
   function renderContent() {
     switch (activeView) {
@@ -1234,6 +1346,9 @@ export default function Home() {
         return (
           <SubjectsView />
         );
+
+      case "tasks":
+        return renderTasks();
 
       case "timer":
         return renderTimer();
@@ -1272,6 +1387,7 @@ export default function Home() {
       className="min-h-screen bg-[#F5F5F7] text-[#1D1D1F]"
     >
       <div className="mx-auto flex min-h-screen max-w-[1600px]">
+        {/* Desktop sidebar */}
         <aside className="sticky top-0 hidden h-screen w-[225px] shrink-0 px-5 py-6 lg:block">
           <div className="flex h-full flex-col rounded-[30px] bg-white p-4">
             <button
@@ -1389,7 +1505,9 @@ export default function Home() {
           </div>
         </aside>
 
+        {/* Main */}
         <main className="min-w-0 flex-1 px-4 pb-28 pt-5 sm:px-6 lg:px-10 lg:pb-10 lg:pt-8">
+          {/* Mobile header */}
           <div className="relative mb-8 flex items-center justify-between lg:hidden">
             <button
               type="button"
@@ -1423,7 +1541,7 @@ export default function Home() {
             </button>
 
             {mobileMenuOpen && (
-              <div className="absolute left-0 top-12 z-50 w-48 animate-[fadeIn_.18s_ease-out] rounded-[20px] border border-black/5 bg-white p-2 shadow-xl">
+              <div className="absolute left-0 top-12 z-50 w-48 rounded-[20px] border border-black/5 bg-white p-2 shadow-xl">
                 <button
                   type="button"
                   onClick={() =>
@@ -1452,15 +1570,18 @@ export default function Home() {
           </div>
 
           <SmoothView
-            viewKey={activeView}
+            viewKey={
+              activeView
+            }
           >
             {renderContent()}
           </SmoothView>
         </main>
       </div>
 
+      {/* Mobile bottom nav */}
       <nav className="fixed bottom-3 left-3 right-3 z-40 rounded-[24px] border border-black/5 bg-white/95 p-2 shadow-[0_8px_30px_rgba(0,0,0,0.08)] backdrop-blur-xl lg:hidden">
-        <div className="grid grid-cols-4">
+        <div className="grid grid-cols-5">
           {mainNavigation.map(
             (item) => {
               const active =

@@ -15,8 +15,10 @@ import {
   getSubjectWorkflow,
 } from "@/data/workflowData";
 
-import type {
-  StudyContext,
+import {
+  loadStudySessions,
+  type StudyContext,
+  type StudySession,
 } from "@/data/sessionData";
 
 const WORKFLOW_STORAGE_KEY =
@@ -71,11 +73,14 @@ export default function SubjectsView() {
       null
     );
 
+  const [sessions, setSessions] = useState<StudySession[]>([]);
+
   // ==========================================
   // Load progress
   // ==========================================
 
   useEffect(() => {
+    setSessions(loadStudySessions());
     let nextProgress:
       LessonProgress = {};
 
@@ -1024,6 +1029,9 @@ export default function SubjectsView() {
               getSubjectStats(
                 subject.id
               );
+            const lastSession = sessions
+              .filter((session) => session.subjectId === subject.id)
+              .sort((a, b) => new Date(b.endedAt).getTime() - new Date(a.endedAt).getTime())[0];
 
             return (
               <button
@@ -1056,6 +1064,10 @@ export default function SubjectsView() {
                   {
                     subject.teacher
                   }
+                </p>
+
+                <p className="mt-2 text-xs text-[#AEAEB2]">
+                  آخر جلسة: {lastSession ? new Intl.DateTimeFormat("ar-EG", { dateStyle: "medium" }).format(new Date(lastSession.endedAt)) : "لا توجد جلسات"}
                 </p>
 
                 <div className="mt-7 flex flex-wrap gap-6 text-xs text-[#86868B]">
